@@ -57,6 +57,8 @@ module Clckwrks.Monad
     )
 where
 
+import AccessControl.Check           (RelationState(..))
+import AccessControl.Relation        (RelationTuple(..))
 import Clckwrks.Admin.URL            (AdminURL(..))
 import Clckwrks.Acid                 (Acid(..), CoreState, GetAcidState(..), GetUACCT(..))
 import Clckwrks.ProfileData.Acid     (ProfileDataState, GetRoles(..), HasRole(..))
@@ -455,6 +457,9 @@ instance (Functor m, Monad m) => GetAcidState (ClckT url m) NavBarState where
 
 instance (Functor m, Monad m) => GetAcidState (ClckT url m) ProfileDataState where
     getAcidState = (acidProfileData . acidState) <$> get
+
+instance (Functor m, Monad m) => GetAcidState (ClckT url m) RelationState  where
+    getAcidState = (acidRebac . acidState) <$> get
 
 -- * XMLGen / XMLGenerator instances for Clck
 

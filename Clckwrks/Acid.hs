@@ -1,6 +1,10 @@
-{-# LANGUAGE CPP, DeriveDataTypeable, FlexibleInstances, MultiParamTypeClasses, TemplateHaskell, TypeFamilies #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, FlexibleInstances, MultiParamTypeClasses, QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings #-}
 module Clckwrks.Acid where
 
+import AccessControl.Acid          ()
+import AccessControl.Relation      (object, rels)
+import AccessControl.Schema        (schema)
+import AccessControl.Check         (RelationState, mkRelationState)
 import Clckwrks.NavBar.Acid        (NavBarState       , initialNavBarState)
 import Clckwrks.ProfileData.Acid   (ProfileDataState, initialProfileDataState)
 import Clckwrks.Types              (UUID)
@@ -14,6 +18,7 @@ import Control.Monad.Reader        (ask)
 import Control.Monad.State         (modify, put)
 import Data.Acid                   (AcidState, Query, Update, createArchive, makeAcidic)
 import Data.Acid.Local             (openLocalStateFrom, createCheckpointAndClose)
+import Data.Acid.Memory            (openMemoryState)
 #if MIN_VERSION_acid_state (0,16,0)
 import Data.Acid.Remote            (acidServerSockAddr, skipAuthenticationCheck)
 import Data.Int                    (Int64)
@@ -299,6 +304,7 @@ data Acid = Acid
       acidProfileData  :: AcidState ProfileDataState
     , acidCore         :: AcidState CoreState
     , acidNavBar       :: AcidState NavBarState
+    , acidRebac        :: AcidState RelationState
     }
 
 class GetAcidState m st where
@@ -311,6 +317,7 @@ withAcid mBasePath f =
     bracket (openLocalStateFrom (basePath </> "core")        initialCoreState)        (createArchiveCheckpointAndClose) $ \core ->
     bracket (openLocalStateFrom (basePath </> "profileData") initialProfileDataState) (createArchiveCheckpointAndClose) $ \profileData ->
     bracket (openLocalStateFrom (basePath </> "navBar")      initialNavBarState)      (createArchiveCheckpointAndClose) $ \navBar ->
+    bracket (openMemoryState (mkRelationState clckwrksSchema clckwrksRels)) (const $ pure ()) $ \rebac ->
     -- create sockets to allow `clckwrks-cli` to talk to the databases
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "core_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "core_socket") profileData))
@@ -327,10 +334,50 @@ withAcid mBasePath f =
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
             (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))
 #endif
-            (const $ f (Acid profileData core navBar))
+            (const $ f (Acid profileData core navBar rebac))
+
     where
       tryRemoveFile fp = removeFile fp `catch` (\e -> if isDoesNotExistError e then return () else throw e)
       createArchiveCheckpointAndClose acid =
           do createArchive acid
              createCheckpointAndClose acid
+
+clckwrksSchema =
+  [schema|
+         definition user {}
+
+         definition platform {
+           relation administrator: user
+
+           permission super_admin = administrator
+         }
+
+         definition rebac_api {
+           relation controller: platform
+
+           permission get    = controller->super_admin
+           permission put    = controller->super_admin
+           permission delete = controller->super_admin
+         }
+
+         definition rebac_url {
+           relation controller: platform
+
+           permission rebac_view = controller->super_admin
+         }
+
+         definition page {
+           relation admin: user
+           permission access = admin
+         }
+ |]
+
+clckwrksRels =
+  [rels|
+         platform:clckwrks#administrator@user:1
+         page:admin#admin@user:1
+         rebac_api:get_schema#controller@platform:clckwrks
+         rebac_url:view_schema#controller@platform:clckwrks
+  |]
+
 

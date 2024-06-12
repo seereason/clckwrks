@@ -47,13 +47,13 @@ withClckwrks cc action = do
   withAcid top' $ \acid ->
     withPlugins cc (initialClckPluginsSt acid) $ \plugins -> do
       u <- atomically $ newTVar 0
-      let clckState = ClckState { acidState        = acid
+      let clckState = ClckState { acidState           = acid
 --                                        , currentPage      = PageId 0
-                                , uniqueId         = u
-                                , adminMenus       = []
-                                , enableAnalytics  = clckEnableAnalytics cc
-                                , plugins          = plugins
-                                , requestInit      = return ()
+                                , uniqueId            = u
+                                , adminMenus          = []
+                                , enableAnalytics     = clckEnableAnalytics cc
+                                , plugins             = plugins
+                                , requestInit         = return ()
                                 }
       action clckState
 
