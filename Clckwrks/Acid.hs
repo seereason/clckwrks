@@ -356,8 +356,7 @@ clckwrksSchema =
            relation controller: platform
 
            permission get    = controller->super_admin
-           permission put    = controller->super_admin
-           permission delete = controller->super_admin
+           permission modify = controller->super_admin
          }
 
          definition rebac_url {
@@ -376,8 +375,10 @@ clckwrksRels =
   [rels|
          platform:clckwrks#administrator@user:1
          page:admin#admin@user:1
-         rebac_api:get_schema#controller@platform:clckwrks
-         rebac_url:view_schema#controller@platform:clckwrks
+         rebac_api:schema#controller@platform:clckwrks
+         rebac_api:relations#controller@platform:clckwrks
+         rebac_url:schema_panel#controller@platform:clckwrks
+         rebac_url:relations_panel#controller@platform:clckwrks
   |]
 
 
