@@ -3,7 +3,7 @@ module Clckwrks.Rebac.Page.Relations where
 
 import AccessControl.Acid            (Check(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
-import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..), ppSchema)
+import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
 import AccessControl.Relation        (KnownPermission, Object(..), ObjectId(..), RelationTuple(..), ToObject(..), ppRelationTuples)
 import Clckwrks
 import Clckwrks.AccessControl      (checkAccess)
@@ -26,7 +26,7 @@ import Happstack.Authenticate.Core (Email(..), User(..))
 import Happstack.Authenticate.Handlers (GetUserByUserId(..), UpdateUser(..))
 import Language.Haskell.HSX.QQ     (hsx)
 import Text.Reform                 ((++>), mapView, transformEitherM)
-import Text.Reform.HSP.Text        (form, inputText, inputSubmit, labelText, fieldset, ol, li, errorList, setAttrs)
+import Text.Reform.HSP.Text        (form, inputText, inputSubmit, labelText, fieldset, ol, li, errorList, select, setAttrs)
 import Text.Reform.Happstack       (reform)
 import HSP.XMLGenerator
 import HSP.XML
@@ -36,14 +36,19 @@ import Web.Plugins.Core            (Plugin(..), getPluginState)
 
 relationsPanel :: RebacURL -> Clck RebacURL Response
 relationsPanel here =
-  do ets <- getRelationTuples
+  do ets    <- getRelationTuples
+     (knownObjectTys, knownRels) <-
+       do eSchema <- getSchema
+          case eSchema of
+            (Left e)  -> pure ([], [])
+            (Right s) -> pure (knownObjectTypes s, knownRelations s)
      canMod <- checkAccess RelationsR (Permission "modify")
      action <- showURL here
      case ets of
        (Right tuples) ->
          do template "REBAC Relations"  () $ [hsx|
               <%>
-               <% relationsTable action tuples %>
+               <% relationsTable action knownObjectTys knownRels tuples %>
                <% show canMod %>
               </%>
                                               |]
@@ -54,15 +59,16 @@ relationsPanel here =
 
 inputText' txt = inputText txt `setAttrs` [("size" := "15") :: Attr Text Text]
 
-objectFormlet :: ClckForm RebacURL Object
-objectFormlet =
-  Object <$> (td $ ObjectType <$> inputText' "") <*> (td $ ObjectId <$> inputText' "")
+objectFormlet :: [ ObjectType ] -> ClckForm RebacURL Object
+objectFormlet objectTypes =
+--  Object <$> (td $ ObjectType <$> inputText' "") <*> (td $ ObjectId <$> inputText' "")
+  Object <$> (td $ select ((ObjectType "","") : (map (\ot@(ObjectType ott) -> (ot, ott)) objectTypes)) ((==) (ObjectType ""))) <*> (td $ ObjectId <$> inputText' "")
   where
     td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
 
-relationTupleFormlet :: ClckForm RebacURL RelationTuple
-relationTupleFormlet =
-  tr ((RelationTuple <$> objectFormlet <*> (td $ Relation <$> inputText' "") <*> objectFormlet <* (td $ inputSubmit "+")))
+relationTupleFormlet :: [ ObjectType ] -> [ Relation ] -> ClckForm RebacURL RelationTuple
+relationTupleFormlet knownObjectTys knownRels =
+  tr ((RelationTuple <$> (objectFormlet knownObjectTys) <*> (td $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation "")))  <*> (objectFormlet knownObjectTys) <* (td $ inputSubmit "+")))
   where
     tr = mapView (\xml -> [[hsx|<tr><% xml %></tr>|]])
     td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
@@ -80,7 +86,7 @@ relationTupleFormlet =
       divControlGroup = mapView (\xml -> [[hsx|<div class="control-group"><% xml %></div>|]])
       divControls     = mapView (\xml -> [[hsx|<div class="controls"><% xml %></div>|]])
 -}
-relationsTable action tuples =
+relationsTable action knownObjectTys knownRels tuples =
   [hsx|
      <div>
       <table class="rebac-relations">
@@ -103,7 +109,7 @@ relationsTable action tuples =
        </thead>
        <tbody>
         <% mapM mkRow tuples %>
-        <% reform (form ("" :: String)) "rebac" updated Nothing relationTupleFormlet %>
+        <% reform (form ("" :: String)) "rebac" updated Nothing (relationTupleFormlet knownObjectTys knownRels) %>
        </tbody>
       </table>
 
@@ -116,7 +122,7 @@ relationsTable action tuples =
       mkRow (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)))  =
              [hsx|
                     <tr><td><% rt %></td>
-                        <td><% rt %></td>
+                        <td><% ri %></td>
                         <td><% r  %></td>
                         <td><% st %></td>
                         <td><% si %></td>
