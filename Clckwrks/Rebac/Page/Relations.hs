@@ -66,9 +66,18 @@ objectFormlet objectTypes =
   where
     td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
 
+emptyRelationIsNothing :: Relation -> Maybe Relation
+emptyRelationIsNothing r@(Relation txt)
+  | Text.null txt = Nothing
+  | otherwise  = Just r
+
 relationTupleFormlet :: [ ObjectType ] -> [ Relation ] -> ClckForm RebacURL RelationTuple
 relationTupleFormlet knownObjectTys knownRels =
-  tr ((RelationTuple <$> (objectFormlet knownObjectTys) <*> (td $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation "")))  <*> (objectFormlet knownObjectTys) <* (td $ inputSubmit "+")))
+  tr ((RelationTuple <$> (objectFormlet knownObjectTys)
+                     <*> (td $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation "")))
+                     <*> (objectFormlet knownObjectTys)
+                     <*> (td $ (fmap emptyRelationIsNothing $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation ""))))
+                     <* (td $ inputSubmit "+")))
   where
     tr = mapView (\xml -> [[hsx|<tr><% xml %></tr>|]])
     td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
@@ -95,7 +104,7 @@ relationsTable action knownObjectTys knownRels tuples =
         <tr>
          <th colspan="2">Resource</th>
          <th>Relation</th>
-         <th colspan="2">Subject</th>
+         <th colspan="3">Subject</th>
          <th>Action</th>
         </tr>
         <tr>
@@ -104,6 +113,7 @@ relationsTable action knownObjectTys knownRels tuples =
          <th></th>
          <th>Object Type</th>
          <th>Object ID</th>
+         <th>Subject Relation</th>
          <th></th>
         </tr>
        </thead>
@@ -119,13 +129,18 @@ relationsTable action knownObjectTys knownRels tuples =
       updated :: RelationTuple -> Clck RebacURL Response
       updated rt =
         ok $ toResponse $ show rt
-      mkRow (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)))  =
+      mkRow (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)) msr )  =
+         let sr = case msr of
+                    Nothing -> ""
+                    (Just (Relation r)) -> r
+         in
              [hsx|
-                    <tr><td><% rt %></td>
-                        <td><% ri %></td>
-                        <td><% r  %></td>
-                        <td><% st %></td>
-                        <td><% si %></td>
+                    <tr><td><% rt  %></td>
+                        <td><% ri  %></td>
+                        <td><% r   %></td>
+                        <td><% st  %></td>
+                        <td><% si  %></td>
+                        <td><% sr %></td>
                         <td><button>X</button></td>
                     </tr>
                     |]

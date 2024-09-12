@@ -28,5 +28,5 @@ instance ToObject RebacURL where
           RelationsPanel -> "relations_panel"
     in Object (ObjectType "rebac_url") objId
 
-instance KnownPermission RebacURL RebacPermission UserId
+instance KnownPermission RebacURL RebacPermission (Maybe UserId)
 

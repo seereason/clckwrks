@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, MultiParamTypeClasses, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, FlexibleInstances, MultiParamTypeClasses, RecordWildCards, OverloadedStrings #-}
 module Clckwrks.Rebac.API
        ( getRelationTuples
        , getSchema
@@ -46,7 +46,7 @@ instance ToObject RebacApi where
   toObject RelationsR =
     Object (ObjectType "rebac_api") (ObjectId "relations")
 
-instance KnownPermission RebacApi Permission UserId
+instance KnownPermission RebacApi Permission (Maybe UserId)
 
 getSchema :: Clck url (Either Text Schema)
 getSchema =

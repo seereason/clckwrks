@@ -39,6 +39,7 @@ checkAuth url =
       PluginData{}         -> return url
       Admin{}              ->
         do r <- checkAccess (Object (ObjectType "page") (ObjectId "admin")) (Permission "access")
+--           let r = Allowed
            case r of
              Allowed -> pure url
              (NotAllowed reasons) ->

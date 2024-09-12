@@ -342,9 +342,17 @@ withAcid mBasePath f =
           do createArchive acid
              createCheckpointAndClose acid
 
+-- * Initial REBAC schema and relations for clckwrks
+--
+-- It should perhaps be possible to pull in the initial schema in from
+-- a static file? Or perhaps always get it from the file and never
+-- from the database so that the schema updates can be tracked in a
+-- revision control system?
+
 clckwrksSchema =
   [schema|
          definition user {}
+
 
          definition platform {
            relation administrator: user
@@ -352,6 +360,10 @@ clckwrksSchema =
            permission super_admin = administrator
          }
 
+         /* controls access to the REBAC API
+
+            For example, can a user query the underlying schema and relations database.
+         */
          definition rebac_api {
            relation controller: platform
 
@@ -359,22 +371,46 @@ clckwrksSchema =
            permission modify = controller->super_admin
          }
 
+         /*
+         controls access to various pages in the REBAC admin panel.
+
+         While the rebac_api might prevent the user from seeing any
+         data in the database should they visit the schema or relations page,
+         we can create a better user experience if we don't even let them see
+         the page.
+         */
          definition rebac_url {
            relation controller: platform
 
            permission rebac_view = controller->super_admin
          }
 
+         definition usergroup {
+           relation direct_member: user | usergroup#member
+
+           permission membership = direct_member
+         }
+
+         /* schema for clckwrks-plugin-page
+         */
          definition page {
            relation admin: user
-           permission access = admin
-         }
- |]
+           relation viewer: usergroup#member
 
+           permission view = viewer + admin
+           permission edit = admin
+         }
+
+ |]
+-- #         page:1#admin@user:1
+--          usergroup:subscribers#direct_member@user:1
 clckwrksRels =
   [rels|
          platform:clckwrks#administrator@user:1
          page:admin#admin@user:1
+         page:1#viewer@usergroup:subscribers#membership
+         page:1#admin@user:1
+         usergroup:subscribers#direct_member@user:1
          rebac_api:schema#controller@platform:clckwrks
          rebac_api:relations#controller@platform:clckwrks
          rebac_url:schema_panel#controller@platform:clckwrks

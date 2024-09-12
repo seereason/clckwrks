@@ -104,3 +104,8 @@ table.rebac-relations
 {
     width: auto;
 }
+
+.rebac-relations select
+{
+    width: auto;
+}
