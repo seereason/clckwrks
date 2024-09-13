@@ -395,7 +395,7 @@ clckwrksSchema =
          */
          definition page {
            relation admin: user
-           relation viewer: usergroup#member
+           relation viewer: user | usergroup#member
 
            permission view = viewer + admin
            permission edit = admin

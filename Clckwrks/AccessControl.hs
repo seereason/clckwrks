@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, DeriveDataTypeable, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, TypeFamilies, RankNTypes, RecordWildCards, ScopedTypeVariables, UndecidableInstances, OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, DeriveGeneric, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, TypeFamilies, RankNTypes, RecordWildCards, ScopedTypeVariables, UndecidableInstances, OverloadedStrings, TemplateHaskell #-}
 module Clckwrks.AccessControl where
 
 import AccessControl.Acid            (Check(..))
@@ -10,10 +10,26 @@ import Clckwrks.Monad
 import Control.Monad.Trans           (MonadIO(..))
 import Clckwrks.Types
 import Clckwrks.Unauthorized         (unauthorizedPage)
+import Data.SafeCopy                 (SafeCopy)
+import           Data.Text           (Text)
 import qualified Data.Text           as Text
 import qualified Data.Text.Lazy      as TL
+import Data.Data                     (Data)
+import Data.Typeable                 (Typeable)
 import Data.UserId                   (UserId(..))
 import Happstack.Server              (Happstack, askRq, escape, rqUri, rqQuery)
+import GHC.Generics                  (Generic)
+
+data AccessList = AccessList
+  { allowedUserIds   :: [ UserId ]
+  , alloweUsergroups :: [ Text ]
+  }
+  deriving (Eq, Ord, Read, Show, Data, Typeable, Generic)
+
+instance SafeCopy AccessList
+
+emptyAccessList :: AccessList
+emptyAccessList = AccessList [] []
 
 instance KnownPermission Object Permission UserId
 instance KnownPermission Object Permission (Maybe UserId)

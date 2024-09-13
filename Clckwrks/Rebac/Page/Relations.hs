@@ -1,10 +1,10 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings, QuasiQuotes, FlexibleContexts, GADTs #-}
 module Clckwrks.Rebac.Page.Relations where
 
-import AccessControl.Acid            (Check(..))
+import AccessControl.Acid            (Check(..), AddRelationTuple(..), RemoveRelationTuple(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
 import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
-import AccessControl.Relation        (KnownPermission, Object(..), ObjectId(..), RelationTuple(..), ToObject(..), ppRelationTuples)
+import AccessControl.Relation        (KnownPermission, Object(..), ObjectId(..), RelationTuple(..), ToObject(..), ppRelationTuple, ppRelationTuples)
 import Clckwrks
 import Clckwrks.AccessControl      (checkAccess)
 import Clckwrks.Monad              (plugins)
@@ -20,6 +20,7 @@ import qualified Data.Acid         as Acid
 import Data.Text                   (pack)
 import qualified Data.Text         as Text
 import Data.Text.Lazy              (Text)
+import qualified Data.Text.Lazy    as TL
 import Data.Maybe                  (fromMaybe)
 import Data.UserId                 (UserId)
 import Happstack.Authenticate.Core (Email(..), User(..))
@@ -71,13 +72,18 @@ emptyRelationIsNothing r@(Relation txt)
   | Text.null txt = Nothing
   | otherwise  = Just r
 
-relationTupleFormlet :: [ ObjectType ] -> [ Relation ] -> ClckForm RebacURL RelationTuple
+data FormAction
+  = AddRT RelationTuple
+  | RemoveRT RelationTuple
+
+relationTupleFormlet :: [ ObjectType ] -> [ Relation ] -> ClckForm RebacURL FormAction
 relationTupleFormlet knownObjectTys knownRels =
-  tr ((RelationTuple <$> (objectFormlet knownObjectTys)
+  tr ((AddRT <$> (RelationTuple 
+                     <$> (objectFormlet knownObjectTys)
                      <*> (td $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation "")))
                      <*> (objectFormlet knownObjectTys)
                      <*> (td $ (fmap emptyRelationIsNothing $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation ""))))
-                     <* (td $ inputSubmit "+")))
+                     <* (td $ inputSubmit "+"))))
   where
     tr = mapView (\xml -> [[hsx|<tr><% xml %></tr>|]])
     td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
@@ -118,7 +124,7 @@ relationsTable action knownObjectTys knownRels tuples =
         </tr>
        </thead>
        <tbody>
-        <% mapM mkRow tuples %>
+        <% mapM mkRow (zip [0..] tuples) %>
         <% reform (form ("" :: String)) "rebac" updated Nothing (relationTupleFormlet knownObjectTys knownRels) %>
        </tbody>
       </table>
@@ -126,10 +132,41 @@ relationsTable action knownObjectTys knownRels tuples =
      </div>
       |]
     where
-      updated :: RelationTuple -> Clck RebacURL Response
-      updated rt =
-        ok $ toResponse $ show rt
-      mkRow (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)) msr )  =
+      updated :: FormAction -> Clck RebacURL Response
+      updated (AddRT rt) =
+        do update (AddRelationTuple rt)
+           seeOtherURL RelationsPanel
+      updated (RemoveRT rt) =
+        do -- liftIO $ putStrLn $ "RemoveRT - " ++ show (ppRelationTuple rt)
+           update (RemoveRelationTuple rt)
+           seeOtherURL RelationsPanel
+{-
+      mkRow :: ( StringType (ServerPartT IO) ~ Text
+               , XMLType (ServerPartT IO) ~ XML 
+               ) => RelationTuple -> Clck RebacURL [XMLGenT (ServerPartT IO) XML]
+-}
+      mkRow (i, r) =
+        reform (form ("" :: String)) (TL.pack $ "rebac-" ++ show i) updated Nothing (fmap (\_ -> (RemoveRT r)) ((mapView (\x -> [mkRow'' r x]) ((inputSubmit "X") :: ClckForm RebacURL (Maybe Text.Text)))))
+      mkRow'' :: RelationTuple
+              -> [XMLGenT (ClckT RebacURL (ServerPartT IO)) XML]
+              -> XMLGenT (ClckT RebacURL (ServerPartT IO)) (XMLType (ClckT RebacURL (ServerPartT IO)))
+      mkRow'' (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)) msr ) delButton =
+         let sr = case msr of
+                    Nothing -> ""
+                    (Just (Relation r)) -> r
+         in
+             [hsx|
+                    <tr><td><% rt  %></td>
+                        <td><% ri  %></td>
+                        <td><% r   %></td>
+                        <td><% st  %></td>
+                        <td><% si  %></td>
+                        <td><% sr %></td>
+                        <td><% delButton %></td>
+                    </tr>
+                    |]
+
+      mkRow' (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)) msr )  =
          let sr = case msr of
                     Nothing -> ""
                     (Just (Relation r)) -> r
