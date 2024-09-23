@@ -3,8 +3,8 @@ module Clckwrks.Rebac.Page.Schema where
 
 import AccessControl.Acid            (Check(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
-import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..), ppSchema)
-import AccessControl.Relation        (KnownPermission, ToObject(..), Object(..), ObjectId(..), ppRelationTuples)
+import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), ppSchema)
+import AccessControl.Relation        (ToObject(..), Object(..), ObjectId(..), ObjectType(..), Relation(..), ToRelation(..), ppRelationTuples)
 import Clckwrks
 import Clckwrks.Monad              (plugins)
 import Clckwrks.Admin.Template     (template)

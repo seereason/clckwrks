@@ -10,18 +10,18 @@ module Clckwrks.Rebac.API
 
 import AccessControl.Acid            (AddRelationTuple(..), Check(..), PutSchema(..), GetSchema(..), GetRelationTuples(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
-import AccessControl.Schema          (Permission(..), Relation(..), Schema(..), ToPermission(..), ToRelation(..), ObjectType(..))
-import AccessControl.Relation        (KnownPermission, RelationTuple(..), ToObject(..), Object(..), ObjectId(..))
+import AccessControl.Schema          (KnownPermission, Permission(..), Schema(..), ToPermission(..), )
+import AccessControl.Relation        (Relation(..), RelationTuple(..), ToObject(..), Object(..), ObjectId(..), ToRelation(..), ObjectType(..))
 
 import Clckwrks.AccessControl       (checkAccess)
 import Clckwrks.Authenticate.Plugin (authenticatePlugin, authenticatePluginLoader)
 import Clckwrks.Authenticate.Monad  (AuthenticatePluginState(..))
-import Clckwrks.Monad               (Clck, ClckPlugins, plugins, query, update)
+import Clckwrks.Monad               (Clck, ClckPlugins, ClckT, plugins, query, update)
 import Control.Concurrent.STM       (atomically)
 import Control.Concurrent.STM.TVar  (modifyTVar')
 import Control.Monad                (join)
 import Control.Monad.State          (get)
-import Control.Monad.Trans          (liftIO)
+import Control.Monad.Trans          (MonadIO(liftIO))
 -- import Data.Acid as Acid            (AcidState, query, update)
 import Data.Data                    (Data)
 import           Data.Map           (Map)
@@ -33,6 +33,7 @@ import qualified Data.Text          as Text
 import Data.Typeable                (Typeable)
 import Data.UserId                  (UserId)
 import GHC.Generics                 (Generic)
+import Happstack.Server             (Happstack)
 import Web.Plugins.Core             (Plugin(..), When(Always), addCleanup, addHandler, addPluginState, getConfig, getPluginRouteFn, getPluginState, getPluginsSt, initPlugin, modifyPluginState')
 
 data RebacApi
@@ -48,7 +49,7 @@ instance ToObject RebacApi where
 
 instance KnownPermission RebacApi Permission (Maybe UserId)
 
-getSchema :: Clck url (Either Text Schema)
+getSchema :: (Happstack m, MonadIO m) => ClckT url m (Either Text Schema)
 getSchema =
   do a <- checkAccess SchemaR (Permission "get")
      case a of
@@ -58,7 +59,7 @@ getSchema =
        NotAllowed reasons ->
          pure $ Left $ Text.pack $ show reasons
 
-getRelationTuples :: Clck url (Either Text [ RelationTuple ])
+getRelationTuples :: (Happstack m, MonadIO m) => ClckT url m (Either Text [ RelationTuple ])
 getRelationTuples =
   do a <- checkAccess RelationsR (Permission "get")
      case a of
@@ -68,7 +69,7 @@ getRelationTuples =
        NotAllowed reasons ->
          pure $ Left $ Text.pack $ show reasons
 
-addRelationTuple :: RelationTuple -> Clck url (Either Text ())
+addRelationTuple :: (Happstack m, MonadIO m) => RelationTuple -> ClckT url m (Either Text ())
 addRelationTuple rt =
   do a <- checkAccess RelationsR (Permission "modify")
      case a of

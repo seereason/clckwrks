@@ -3,8 +3,8 @@ module Clckwrks.Rebac.Page.Relations where
 
 import AccessControl.Acid            (Check(..), AddRelationTuple(..), RemoveRelationTuple(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
-import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
-import AccessControl.Relation        (KnownPermission, Object(..), ObjectId(..), RelationTuple(..), ToObject(..), ppRelationTuple, ppRelationTuples)
+import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
+import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), ppRelationTuple, ppRelationTuples)
 import Clckwrks
 import Clckwrks.AccessControl      (checkAccess)
 import Clckwrks.Monad              (plugins)
@@ -38,18 +38,18 @@ import Web.Plugins.Core            (Plugin(..), getPluginState)
 relationsPanel :: RebacURL -> Clck RebacURL Response
 relationsPanel here =
   do ets    <- getRelationTuples
-     (knownObjectTys, knownRels) <-
+     (knownObjectTys, knownRels, knownSubjectRels) <-
        do eSchema <- getSchema
           case eSchema of
-            (Left e)  -> pure ([], [])
-            (Right s) -> pure (knownObjectTypes s, knownRelations s)
+            (Left e)  -> pure ([], [], [])
+            (Right s) -> pure (knownObjectTypes s, knownRelations s, [ Relation "membership" ]) -- FIXME: should be calculated. Also it is called a subject relation, but it seems like it is a permission?
      canMod <- checkAccess RelationsR (Permission "modify")
      action <- showURL here
      case ets of
        (Right tuples) ->
          do template "REBAC Relations"  () $ [hsx|
               <%>
-               <% relationsTable action knownObjectTys knownRels tuples %>
+               <% relationsTable action knownObjectTys knownRels knownSubjectRels tuples %>
                <% show canMod %>
               </%>
                                               |]
@@ -76,13 +76,13 @@ data FormAction
   = AddRT RelationTuple
   | RemoveRT RelationTuple
 
-relationTupleFormlet :: [ ObjectType ] -> [ Relation ] -> ClckForm RebacURL FormAction
-relationTupleFormlet knownObjectTys knownRels =
-  tr ((AddRT <$> (RelationTuple 
+relationTupleFormlet :: [ ObjectType ] -> [ Relation ] -> [ Relation ] -> ClckForm RebacURL FormAction
+relationTupleFormlet knownObjectTys knownRels knownSubjectRels =
+  tr ((AddRT <$> (RelationTuple
                      <$> (objectFormlet knownObjectTys)
                      <*> (td $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation "")))
                      <*> (objectFormlet knownObjectTys)
-                     <*> (td $ (fmap emptyRelationIsNothing $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation ""))))
+                     <*> (td $ (fmap emptyRelationIsNothing $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownSubjectRels)) ((==) (Relation ""))))
                      <* (td $ inputSubmit "+"))))
   where
     tr = mapView (\xml -> [[hsx|<tr><% xml %></tr>|]])
@@ -101,7 +101,7 @@ relationTupleFormlet knownObjectTys knownRels =
       divControlGroup = mapView (\xml -> [[hsx|<div class="control-group"><% xml %></div>|]])
       divControls     = mapView (\xml -> [[hsx|<div class="controls"><% xml %></div>|]])
 -}
-relationsTable action knownObjectTys knownRels tuples =
+relationsTable action knownObjectTys knownRels knownSubjectRels tuples =
   [hsx|
      <div>
       <table class="rebac-relations">
@@ -125,7 +125,7 @@ relationsTable action knownObjectTys knownRels tuples =
        </thead>
        <tbody>
         <% mapM mkRow (zip [0..] tuples) %>
-        <% reform (form ("" :: String)) "rebac" updated Nothing (relationTupleFormlet knownObjectTys knownRels) %>
+        <% reform (form ("" :: String)) "rebac" updated Nothing (relationTupleFormlet knownObjectTys knownRels knownSubjectRels) %>
        </tbody>
       </table>
 
@@ -142,7 +142,7 @@ relationsTable action knownObjectTys knownRels tuples =
            seeOtherURL RelationsPanel
 {-
       mkRow :: ( StringType (ServerPartT IO) ~ Text
-               , XMLType (ServerPartT IO) ~ XML 
+               , XMLType (ServerPartT IO) ~ XML
                ) => RelationTuple -> Clck RebacURL [XMLGenT (ServerPartT IO) XML]
 -}
       mkRow (i, r) =

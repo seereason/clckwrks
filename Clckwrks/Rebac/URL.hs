@@ -5,8 +5,8 @@ module Clckwrks.Rebac.URL
        where
 
 -- import Clckwrks.AccessControl      () -- ToObject UserId
-import AccessControl.Relation      (KnownPermission(..), ToObject(..), Object(..), ObjectId(..))
-import AccessControl.Schema        (ObjectType(..))
+import AccessControl.Relation      (ToObject(..), Object(..), ObjectType(..), ObjectId(..))
+import AccessControl.Schema        (KnownPermission(..))
 import Clckwrks.Rebac.Types        (RebacPermission(..))
 import Clckwrks.Types              ()
 import Data.Data                   (Data, Typeable)

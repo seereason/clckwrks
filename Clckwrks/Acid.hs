@@ -2,7 +2,7 @@
 module Clckwrks.Acid where
 
 import AccessControl.Acid          ()
-import AccessControl.Relation      (object, rels)
+import AccessControl.Relation      (ObjectType(..), Relation(..), object, rels)
 import AccessControl.Schema        (schema)
 import AccessControl.Check         (RelationState, mkRelationState)
 import Clckwrks.NavBar.Acid        (NavBarState       , initialNavBarState)
@@ -353,7 +353,6 @@ clckwrksSchema =
   [schema|
          definition user {}
 
-
          definition platform {
            relation administrator: user
 
@@ -371,6 +370,10 @@ clckwrksSchema =
            permission modify = controller->super_admin
          }
 
+         definition clck {
+           relation controller: platform
+           permission admin = controller->super_admin
+         }
          /*
          controls access to various pages in the REBAC admin panel.
 
@@ -401,15 +404,25 @@ clckwrksSchema =
            permission edit = admin
          }
 
+         /* schema for clckwrk-plugin-stripe
+         */
+         definition stripe {
+         }
+
  |]
 -- #         page:1#admin@user:1
 --          usergroup:subscribers#direct_member@user:1
+--         usergroup:price_0O8U5HMFVgr8nx2JswmPcAxw#direct_member@user:1
+
 clckwrksRels =
   [rels|
+         page:2#viewer@usergroup:price_0O8U5HMFVgr8nx2JswmPcAxw#membership
          platform:clckwrks#administrator@user:1
+         clck:admin#controller@platform:clckwrks
          page:admin#admin@user:1
          page:1#viewer@usergroup:subscribers#membership
          page:1#admin@user:1
+         page:1#viewer@user:2
          usergroup:subscribers#direct_member@user:1
          rebac_api:schema#controller@platform:clckwrks
          rebac_api:relations#controller@platform:clckwrks
@@ -418,3 +431,8 @@ clckwrksRels =
   |]
 
 
+direct_member :: Relation
+direct_member = Relation "direct_member"
+
+usergroup :: ObjectType
+usergroup = ObjectType "usergroup"

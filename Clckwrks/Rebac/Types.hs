@@ -1,12 +1,12 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric, FlexibleInstances, TemplateHaskell, TypeFamilies, OverloadedStrings #-}
 module Clckwrks.Rebac.Types where
 
-import AccessControl.Acid            (Check(..))
-import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
-import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..))
-import AccessControl.Relation        (KnownPermission, ToObject(..), Object(..), ObjectId(..))
-import Data.Data                   (Data, Typeable)
-import GHC.Generics                (Generic)
+import AccessControl.Acid     (Check(..))
+import AccessControl.Check    (RelationState(..), Access(..), RelationState(..), )
+import AccessControl.Schema   (KnownPermission, Permission(..), ToPermission(..))
+import AccessControl.Relation (ToObject(..), Object(..), ObjectId(..), ObjectType(..),Relation(..), ToRelation(..) )
+import Data.Data              (Data, Typeable)
+import GHC.Generics           (Generic)
 
 data RebacRelation
   = RebacAdmin

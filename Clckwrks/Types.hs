@@ -6,8 +6,6 @@ module Clckwrks.Types
     , NamedLink(..)
     ) where
 
-import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..))
-import AccessControl.Relation        (KnownPermission, ToObject(..), Object(..), ObjectId(..))
 import Control.Applicative ((<$>))
 import Data.Aeson    (ToJSON(..), (.=), object)
 import Data.Data     (Data, Typeable)
@@ -19,13 +17,6 @@ import Data.UUID.Types (UUID)
 import Data.UUID.Orphans ()
 import Data.UserId (UserId(..))
 import HSP.Google.Analytics (UACCT)
-
-instance ToObject UserId where
-  toObject (UserId n) = Object (ObjectType "user") (ObjectId $ T.pack $ show n)
-
-instance ToObject (Maybe UserId) where
-  toObject (Just (UserId n)) = Object (ObjectType "user") (ObjectId $ T.pack $ show n)
-  toObject Nothing           = Object (ObjectType "user") (ObjectId $ "anonymous")
 
 -- | 'SafeCopy' instances for some 3rd party types
 $(deriveSafeCopy 0 'base ''UACCT)

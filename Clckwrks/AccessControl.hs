@@ -2,9 +2,9 @@
 module Clckwrks.AccessControl where
 
 import AccessControl.Acid            (Check(..))
-import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
-import AccessControl.Schema          (Permission(..), Relation(..), ToPermission(..), ToRelation(..), ObjectType(..), ppPermission)
-import AccessControl.Relation        (KnownPermission, ToObject(..), Object(..), ObjectId(..), ppObject)
+import AccessControl.Check           (RelationState(..), Access(..))
+import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), ppPermission)
+import AccessControl.Relation        ( Relation(..), ToRelation(..), ToObject(..), Object(..), ObjectId(..), ObjectType(..), ppObject)
 import Clckwrks.Authenticate.Plugin  (getUserId)
 import Clckwrks.Monad
 import Control.Monad.Trans           (MonadIO(..))
@@ -21,15 +21,16 @@ import Happstack.Server              (Happstack, askRq, escape, rqUri, rqQuery)
 import GHC.Generics                  (Generic)
 
 data AccessList = AccessList
-  { allowedUserIds   :: [ UserId ]
-  , alloweUsergroups :: [ Text ]
+  { allowAnonymous   :: Bool
+  , allowUserIds   :: [ UserId ]
+  , allowUsergroups :: [ Text ]
   }
   deriving (Eq, Ord, Read, Show, Data, Typeable, Generic)
 
 instance SafeCopy AccessList
 
 emptyAccessList :: AccessList
-emptyAccessList = AccessList [] []
+emptyAccessList = AccessList False [] []
 
 instance KnownPermission Object Permission UserId
 instance KnownPermission Object Permission (Maybe UserId)

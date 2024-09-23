@@ -38,7 +38,7 @@ checkAuth url =
       ThemeDataNoEscape{}  -> return url
       PluginData{}         -> return url
       Admin{}              ->
-        do r <- checkAccess (Object (ObjectType "page") (ObjectId "admin")) (Permission "access")
+        do r <- checkAccess (Object (ObjectType "clck") (ObjectId "admin")) (Permission "admin")
 --           let r = Allowed
            case r of
              Allowed -> pure url
