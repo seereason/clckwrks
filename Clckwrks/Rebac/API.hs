@@ -8,7 +8,7 @@ module Clckwrks.Rebac.API
        , RebacApi(..)
        ) where
 
-import AccessControl.Acid            (AddRelationTuple(..), Check(..), PutSchema(..), GetSchema(..), GetRelationTuples(..))
+-- import AccessControl.Acid            (AddRelationTuple(..), Check(..), PutSchema(..), GetSchema(..), GetRelationTuples(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
 import AccessControl.Schema          (KnownPermission, Permission(..), Schema(..), ToPermission(..), )
 import AccessControl.Relation        (Relation(..), RelationTuple(..), ToObject(..), Object(..), ObjectId(..), ToRelation(..), ObjectType(..))
@@ -16,7 +16,8 @@ import AccessControl.Relation        (Relation(..), RelationTuple(..), ToObject(
 import Clckwrks.AccessControl       (checkAccess)
 import Clckwrks.Authenticate.Plugin (authenticatePlugin, authenticatePluginLoader)
 import Clckwrks.Authenticate.Monad  (AuthenticatePluginState(..))
-import Clckwrks.Monad               (Clck, ClckPlugins, ClckT, plugins, query, update)
+import Clckwrks.Monad               (Clck, ClckPlugins, ClckT, ClckState(rebacSchema), plugins, query, update)
+import Clckwrks.Rebac.Acid          (AddRelationTuple(..), GetRelationTuples(..), RemoveRelationTuple(..))
 import Control.Concurrent.STM       (atomically)
 import Control.Concurrent.STM.TVar  (modifyTVar')
 import Control.Monad                (join)
@@ -54,7 +55,7 @@ getSchema =
   do a <- checkAccess SchemaR (Permission "get")
      case a of
        Allowed ->
-         do s <- query GetSchema
+         do s <- rebacSchema <$> get
             pure $ Right $ s
        NotAllowed reasons ->
          pure $ Left $ Text.pack $ show reasons

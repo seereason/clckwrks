@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts, RecordWildCards, MultiParamTypeClasses, OverloadedStrings #-}
 module Clckwrks.Route where
 
-import AccessControl.Acid          (Check(..))
 import AccessControl.Check         (Access(..))
 import AccessControl.Schema
 import AccessControl.Relation

@@ -1,7 +1,6 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings, QuasiQuotes, FlexibleContexts, GADTs #-}
 module Clckwrks.Rebac.Page.Relations where
 
-import AccessControl.Acid            (Check(..), AddRelationTuple(..), RemoveRelationTuple(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
 import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
 import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), ppRelationTuple, ppRelationTuples)
@@ -12,6 +11,7 @@ import Clckwrks.Admin.Template     (template)
 import Clckwrks.Authenticate.Plugin (authenticatePlugin)
 import Clckwrks.Authenticate.Monad (AuthenticatePluginState(..))
 import Clckwrks.ProfileData.Acid   (GetProfileData(..), SetProfileData(..))
+import Clckwrks.Rebac.Acid         (AddRelationTuple(..), RemoveRelationTuple(..))
 import Clckwrks.Rebac.API          (RebacApi(..), getRelationTuples, getSchema)
 import Clckwrks.Rebac.URL          (RebacURL(..))
 import Control.Monad.State         (get)

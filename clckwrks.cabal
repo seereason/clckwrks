@@ -80,6 +80,7 @@ Library
                    Clckwrks.ProfileData.EditProfileData
                    Clckwrks.ProfileData.EditNewProfileData
                    Clckwrks.ProfileData.EditProfileDataFor
+                   Clckwrks.Rebac.Acid
                    Clckwrks.Rebac.API
 --                   Clckwrks.Rebac.Monad
 --                   Clckwrks.Rebac.Plugin

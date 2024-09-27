@@ -1,12 +1,12 @@
-{-# LANGUAGE CPP, DeriveDataTypeable, FlexibleInstances, MultiParamTypeClasses, QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, DeriveGeneric, FlexibleInstances, MultiParamTypeClasses, QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings #-}
 module Clckwrks.Acid where
 
-import AccessControl.Acid          ()
-import AccessControl.Relation      (ObjectType(..), Relation(..), object, rels)
+import AccessControl.Relation      (ObjectType(..), Relation(..), RelationTuple(..), object, rels)
 import AccessControl.Schema        (schema)
 import AccessControl.Check         (RelationState, mkRelationState)
 import Clckwrks.NavBar.Acid        (NavBarState       , initialNavBarState)
 import Clckwrks.ProfileData.Acid   (ProfileDataState, initialProfileDataState)
+import Clckwrks.Rebac.Acid         (RebacState, initialRebacState)
 import Clckwrks.Types              (UUID)
 import Clckwrks.URL                (ClckURL)
 import Control.Applicative         ((<$>))
@@ -35,6 +35,7 @@ import qualified Data.Text         as Text
 import Happstack.Authenticate.Core (SimpleAddress(..))
 import Happstack.Authenticate.Handlers (AuthenticateState)
 import Happstack.Authenticate.Password.Handlers (PasswordState)
+import GHC.Generics                (Generic)
 import Prelude                     hiding (catch)
 import System.Directory            (removeFile)
 import System.FilePath             ((</>))
@@ -304,7 +305,7 @@ data Acid = Acid
       acidProfileData  :: AcidState ProfileDataState
     , acidCore         :: AcidState CoreState
     , acidNavBar       :: AcidState NavBarState
-    , acidRebac        :: AcidState RelationState
+    , acidRebac        :: AcidState RebacState
     }
 
 class GetAcidState m st where
@@ -317,7 +318,7 @@ withAcid mBasePath f =
     bracket (openLocalStateFrom (basePath </> "core")        initialCoreState)        (createArchiveCheckpointAndClose) $ \core ->
     bracket (openLocalStateFrom (basePath </> "profileData") initialProfileDataState) (createArchiveCheckpointAndClose) $ \profileData ->
     bracket (openLocalStateFrom (basePath </> "navBar")      initialNavBarState)      (createArchiveCheckpointAndClose) $ \navBar ->
-    bracket (openMemoryState (mkRelationState clckwrksSchema clckwrksRels)) (const $ pure ()) $ \rebac ->
+    bracket (openMemoryState initialRebacState) (const $ pure ()) $ \rebac ->
     -- create sockets to allow `clckwrks-cli` to talk to the databases
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "core_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "core_socket") profileData))
@@ -341,98 +342,3 @@ withAcid mBasePath f =
       createArchiveCheckpointAndClose acid =
           do createArchive acid
              createCheckpointAndClose acid
-
--- * Initial REBAC schema and relations for clckwrks
---
--- It should perhaps be possible to pull in the initial schema in from
--- a static file? Or perhaps always get it from the file and never
--- from the database so that the schema updates can be tracked in a
--- revision control system?
-
-clckwrksSchema =
-  [schema|
-         definition user {}
-
-         definition platform {
-           relation administrator: user
-
-           permission super_admin = administrator
-         }
-
-         /* controls access to the REBAC API
-
-            For example, can a user query the underlying schema and relations database.
-         */
-         definition rebac_api {
-           relation controller: platform
-
-           permission get    = controller->super_admin
-           permission modify = controller->super_admin
-         }
-
-         definition clck {
-           relation controller: platform
-           permission admin = controller->super_admin
-         }
-         /*
-         controls access to various pages in the REBAC admin panel.
-
-         While the rebac_api might prevent the user from seeing any
-         data in the database should they visit the schema or relations page,
-         we can create a better user experience if we don't even let them see
-         the page.
-         */
-         definition rebac_url {
-           relation controller: platform
-
-           permission rebac_view = controller->super_admin
-         }
-
-         definition usergroup {
-           relation direct_member: user | usergroup#member
-
-           permission membership = direct_member
-         }
-
-         /* schema for clckwrks-plugin-page
-         */
-         definition page {
-           relation admin: user
-           relation viewer: user | usergroup#member
-
-           permission view = viewer + admin
-           permission edit = admin
-         }
-
-         /* schema for clckwrk-plugin-stripe
-         */
-         definition stripe {
-         }
-
- |]
--- #         page:1#admin@user:1
---          usergroup:subscribers#direct_member@user:1
---         usergroup:price_0O8U5HMFVgr8nx2JswmPcAxw#direct_member@user:1
-
-clckwrksRels =
-  [rels|
-         page:2#viewer@usergroup:price_0O8U5HMFVgr8nx2JswmPcAxw#membership
-         platform:clckwrks#administrator@user:1
-         clck:admin#controller@platform:clckwrks
-         page:admin#admin@user:1
-         page:1#viewer@usergroup:subscribers#membership
-         page:1#admin@user:1
-         page:1#viewer@user:2
-         usergroup:subscribers#direct_member@user:1
-         rebac_api:schema#controller@platform:clckwrks
-         rebac_api:relations#controller@platform:clckwrks
-         rebac_url:schema_panel#controller@platform:clckwrks
-         rebac_url:relations_panel#controller@platform:clckwrks
-  |]
-
-
-direct_member :: Relation
-direct_member = Relation "direct_member"
-
-usergroup :: ObjectType
-usergroup = ObjectType "usergroup"

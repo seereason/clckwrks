@@ -1,7 +1,6 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings, QuasiQuotes #-}
 module Clckwrks.Rebac.Page.Schema where
 
-import AccessControl.Acid            (Check(..))
 import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
 import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), ppSchema)
 import AccessControl.Relation        (ToObject(..), Object(..), ObjectId(..), ObjectType(..), Relation(..), ToRelation(..), ppRelationTuples)
@@ -35,13 +34,9 @@ import Web.Plugins.Core            (Plugin(..), getPluginState)
 
 schemaPanel :: RebacURL -> Clck RebacURL Response
 schemaPanel here =
-  do es <- getSchema
-     case es of
-       (Right schema) ->
-         do template "REBAC Schema"  () $ [hsx|
+  do schema <- rebacSchema <$> get
+     template "REBAC Schema"  () $ [hsx|
               <%>
                <pre><code><% show $ ppSchema schema %></code></pre>
               </%>
-                                              |]
-       (Left e) ->
-         ok $ toResponse $ show e
+     |]
