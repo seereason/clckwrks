@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, RecordWildCards, MultiParamTypeClasses, OverloadedStrings #-}
+{-# LANGUAGE DataKinds, FlexibleContexts, RecordWildCards, MultiParamTypeClasses, OverloadedStrings #-}
 module Clckwrks.Route where
 
 import AccessControl.Check         (Access(..))
@@ -37,7 +37,8 @@ checkAuth url =
       ThemeDataNoEscape{}  -> return url
       PluginData{}         -> return url
       Admin{}              ->
-        do r <- checkAccess (Object (ObjectType "clck") (ObjectId "admin")) (Permission "admin")
+        do let clckAdmin = Object (ObjectType "clck") (ObjectId "admin") :: Object NoWildcard
+           r <- checkAccess clckAdmin (Permission "admin")
 --           let r = Allowed
            case r of
              Allowed -> pure url

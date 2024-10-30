@@ -6,6 +6,7 @@ import Control.Applicative         ((<$>))
 import Clckwrks.Monad              (ClckT(..), plugins)
 import Clckwrks.Rebac.Page.Schema    (schemaPanel)
 import Clckwrks.Rebac.Page.Relations (relationsPanel)
+import Clckwrks.Rebac.Page.RelationLog (relationLogPanel)
 import Clckwrks.Rebac.Types        (RebacPermission(..))
 import Clckwrks.Rebac.URL          (RebacURL(..))
 import Clckwrks.URL                (ClckURL)
@@ -25,6 +26,7 @@ routeRebac u' =
      case u of
        SchemaPanel      -> schemaPanel u
        RelationsPanel   -> relationsPanel u
+       RelationLogPanel -> relationLogPanel u
 
 {-
      p <- plugins <$> get
@@ -45,9 +47,12 @@ checkAuth url =
      -- ~(Just clckShowFn) <- getPluginRouteFn p "clck" -- (pluginName clckPlugin) -- a mildly dangerous hack to avoid circular depends
      -- let requiresRole = requiresRole_ clckShowFn
      case url of
-       SchemaPanel      ->
+       SchemaPanel         ->
          do assertAccess url RebacView
             pure url
        RelationsPanel      ->
+         do assertAccess url RebacView
+            pure url
+       RelationLogPanel    ->
          do assertAccess url RebacView
             pure url

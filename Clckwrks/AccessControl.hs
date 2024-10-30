@@ -1,9 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable, DeriveGeneric, GeneralizedNewtypeDeriving, MultiParamTypeClasses, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, TypeFamilies, RankNTypes, RecordWildCards, ScopedTypeVariables, UndecidableInstances, OverloadedStrings, TemplateHaskell #-}
 module Clckwrks.AccessControl where
 
--- import AccessControl.Acid            (Check(..))
-
-import AccessControl.Check           (RelationState(..), Access(..), check)
+import AccessControl.Check           (Access(..), check)
 import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), ppPermission)
 import AccessControl.Relation        ( Relation(..), ToRelation(..), ToObject(..), Object(..), ObjectId(..), ObjectType(..), ppObject)
 import Clckwrks.Authenticate.Plugin  (getUserId)
@@ -24,9 +22,9 @@ import Happstack.Server              (Happstack, askRq, escape, rqUri, rqQuery)
 import GHC.Generics                  (Generic)
 
 data AccessList = AccessList
-  { allowAnonymous   :: Bool
-  , allowUserIds   :: [ UserId ]
-  , allowUsergroups :: [ Text ]
+  { allowAny         :: Bool
+  , allowUserIds     :: [ UserId ]
+  , allowUsergroups  :: [ Text ]
   }
   deriving (Eq, Ord, Read, Show, Data, Typeable, Generic)
 
@@ -34,9 +32,6 @@ instance SafeCopy AccessList
 
 emptyAccessList :: AccessList
 emptyAccessList = AccessList False [] []
-
-instance KnownPermission Object Permission UserId
-instance KnownPermission Object Permission (Maybe UserId)
 
 -- | find out if the current user has permession to access a resource
 checkAccess :: (KnownPermission resource permission (Maybe UserId), Happstack m, MonadIO m) => resource -> permission -> ClckT url m Access

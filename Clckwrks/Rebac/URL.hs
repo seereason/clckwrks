@@ -17,6 +17,7 @@ import Web.Routes.TH               (derivePathInfo)
 data RebacURL
   = SchemaPanel
   | RelationsPanel
+  | RelationLogPanel
   deriving (Eq, Ord, Data, Typeable, Generic, Read, Show)
 
 derivePathInfo ''RebacURL
@@ -26,6 +27,7 @@ instance ToObject RebacURL where
     let objId = ObjectId $ case u of
           SchemaPanel    -> "schema_panel"
           RelationsPanel -> "relations_panel"
+          RelationLogPanel -> "relation_log_panel"
     in Object (ObjectType "rebac_url") objId
 
 instance KnownPermission RebacURL RebacPermission (Maybe UserId)

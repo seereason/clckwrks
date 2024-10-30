@@ -3,7 +3,6 @@ module Clckwrks.Acid where
 
 import AccessControl.Relation      (ObjectType(..), Relation(..), RelationTuple(..), object, rels)
 import AccessControl.Schema        (schema)
-import AccessControl.Check         (RelationState, mkRelationState)
 import Clckwrks.NavBar.Acid        (NavBarState       , initialNavBarState)
 import Clckwrks.ProfileData.Acid   (ProfileDataState, initialProfileDataState)
 import Clckwrks.Rebac.Acid         (RebacState, initialRebacState)
@@ -318,7 +317,7 @@ withAcid mBasePath f =
     bracket (openLocalStateFrom (basePath </> "core")        initialCoreState)        (createArchiveCheckpointAndClose) $ \core ->
     bracket (openLocalStateFrom (basePath </> "profileData") initialProfileDataState) (createArchiveCheckpointAndClose) $ \profileData ->
     bracket (openLocalStateFrom (basePath </> "navBar")      initialNavBarState)      (createArchiveCheckpointAndClose) $ \navBar ->
-    bracket (openMemoryState initialRebacState) (const $ pure ()) $ \rebac ->
+    bracket (openLocalStateFrom (basePath </> "rebac")       initialRebacState)       (createArchiveCheckpointAndClose) $ \rebac ->
     -- create sockets to allow `clckwrks-cli` to talk to the databases
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "core_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "core_socket") profileData))
@@ -330,11 +329,19 @@ withAcid mBasePath f =
 #endif
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "profileData_socket") profileData))
-            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket")) $ const $
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
-            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket")) $ const $
 #endif
+#if MIN_VERSION_acid_state (0,16,0)
+    bracket (forkIO (tryRemoveFile (basePath </> "rebac_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "rebac_socket") rebac))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "rebac_socket"))
+#else
+    bracket (forkIO (tryRemoveFile (basePath </> "rebac_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "rebac_socket") rebac))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "rebac_socket"))
+#endif
+
             (const $ f (Acid profileData core navBar rebac))
 
     where

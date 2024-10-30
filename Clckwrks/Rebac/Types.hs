@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric, FlexibleInstances, TemplateHaskell, TypeFamilies, OverloadedStrings #-}
 module Clckwrks.Rebac.Types where
 
-import AccessControl.Check    (RelationState(..), Access(..), RelationState(..), )
+import AccessControl.Check    (Access(..))
 import AccessControl.Schema   (KnownPermission, Permission(..), ToPermission(..))
 import AccessControl.Relation (ToObject(..), Object(..), ObjectId(..), ObjectType(..),Relation(..), ToRelation(..) )
 import Data.Data              (Data, Typeable)

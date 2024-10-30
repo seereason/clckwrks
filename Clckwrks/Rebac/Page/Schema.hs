@@ -1,7 +1,6 @@
 {-# LANGUAGE RecordWildCards, OverloadedStrings, QuasiQuotes #-}
 module Clckwrks.Rebac.Page.Schema where
 
-import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
 import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), ppSchema)
 import AccessControl.Relation        (ToObject(..), Object(..), ObjectId(..), ObjectType(..), Relation(..), ToRelation(..), ppRelationTuples)
 import Clckwrks

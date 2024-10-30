@@ -1,8 +1,8 @@
-{-# LANGUAGE RecordWildCards, OverloadedStrings, QuasiQuotes, FlexibleContexts, GADTs, DataKinds #-}
-module Clckwrks.Rebac.Page.Relations where
+{-# LANGUAGE RecordWildCards, OverloadedStrings, QuasiQuotes, FlexibleContexts, GADTs #-}
+module Clckwrks.Rebac.Page.RelationLog where
 
 import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
-import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), ObjectWildcard(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), WildcardObjectId(..), ppRelationTuple, ppRelationTuples)
+import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), WildcardObjectId(..), ppRelationTuple, ppRelationTuples)
 import Clckwrks
 import Clckwrks.AccessControl      (checkAccess)
 import Clckwrks.Monad              (plugins)
@@ -10,8 +10,8 @@ import Clckwrks.Admin.Template     (template)
 import Clckwrks.Authenticate.Plugin (authenticatePlugin)
 import Clckwrks.Authenticate.Monad (AuthenticatePluginState(..))
 import Clckwrks.ProfileData.Acid   (GetProfileData(..), SetProfileData(..))
-import Clckwrks.Rebac.Acid         (AddRelationTuple(..), RemoveRelationTuple(..))
-import Clckwrks.Rebac.API          (RebacApi(..), addRelationTuple, removeRelationTuple, getRelationTuples, getSchema)
+import Clckwrks.Rebac.Acid         (RelationLogEntry(..), RLEAction(..))
+import Clckwrks.Rebac.API          (RebacApi(..), addRelationTuple, removeRelationTuple, getRelationLog, getSchema)
 import Clckwrks.Rebac.URL          (RebacURL(..))
 import Control.Monad.State         (get)
 import Control.Monad.Trans         (liftIO)
@@ -20,7 +20,7 @@ import Data.Text                   (pack)
 import qualified Data.Text         as Text
 import Data.Text.Lazy              (Text)
 import qualified Data.Text.Lazy    as TL
-import Data.Maybe                  (fromMaybe)
+import Data.Maybe                  (fromMaybe, maybe)
 import Data.UserId                 (UserId)
 import Happstack.Authenticate.Core (Email(..), User(..))
 import Happstack.Authenticate.Handlers (GetUserByUserId(..), UpdateUser(..))
@@ -35,47 +35,85 @@ import Web.Plugins.Core            (Plugin(..), getPluginState)
 -- FIXME: this currently uses the admin template. Which is sort of right, and sort of not.
 
 -- FIXME: should this call a varient of `getRelationTuples` where we see that the user is allowed to view them?
-relationsPanel :: RebacURL -> Clck RebacURL Response
-relationsPanel here =
-  do ets    <- getRelationTuples
-     (knownObjectTys, knownRels, knownSubjectRels) <-
-       do eSchema <- getSchema
-          case eSchema of
-            (Left e)  -> pure ([], [], [])
-            (Right s) -> pure (knownObjectTypes s, knownRelations s, [ Relation "membership" ]) -- FIXME: should be calculated. Also it is called a subject relation, but it seems like it is a permission?
-     canMod <- checkAccess RelationsR (Permission "modify")
-     action <- showURL here
-     case ets of
-       (Right tuples) ->
-         do template "REBAC Relations"  () $ [hsx|
+relationLogPanel :: RebacURL -> Clck RebacURL Response
+relationLogPanel here =
+  do eLog    <- getRelationLog
+     case eLog of
+       (Right logEntries) ->
+         do template "REBAC Relation Log"  () $ [hsx|
               <%>
-               <% relationsTable action knownObjectTys knownRels knownSubjectRels tuples %>
-               <% show canMod %>
+               <% relationLogTable logEntries %>
               </%>
                                               |]
        (Left e) ->
          ok $ toResponse $ show e
 
---                <pre><code><% show $ ppRelationTuples tuples %></code></pre>
 
+-- relationLogTable :: [ RelationLogEntry ] -> Clck RebacURL Response
+relationLogTable logEntries =
+  [hsx|
+     <div>
+      <table class="rebac-relations">
+       <caption>Relation Log</caption>
+       <thead>
+        <tr>
+         <th colspan="6">Relation</th>
+         <th>Timestamp</th>
+         <th>Action</th>
+         <th>Comment</th>
+        </tr>
+        <tr>
+         <th colspan="2">Resource</th>
+         <th>Relation</th>
+         <th colspan="3">Subject</th>
+        </tr>
+        <tr>
+         <th>Object Type</th>
+         <th>Object ID</th>
+         <th></th>
+         <th>Object Type</th>
+         <th>Object ID</th>
+         <th>Subject Relation</th>
+        </tr>
+       </thead>
+       <tbody>
+        <% mapM mkRow logEntries %>
+       </tbody>
+      </table>
+
+     </div>
+      |]
+
+    where
+      showAction :: RLEAction -> Text
+      showAction RLEAdd    = "added"
+      showAction RLERemove = "removed"
+      mkRow (RelationLogEntry ts (RelationTuple (Object (ObjectType rot) (ObjectId rid)) (Relation rel) (Object (ObjectType sot) wsid) mSubRel) action comment) =
+        let sid = case wsid of
+                    Wildcard -> "*"
+                    (Specific (ObjectId i)) -> i
+        in
+        [hsx| <tr>
+               <td><% rot %></td>
+               <td><% rid %></td>
+               <td><% rel %></td>
+               <td><% sot %></td>
+               <td><% sid %></td>
+               <td><% maybe "" (\(Relation r) -> r) mSubRel %></td>
+               <td><% show ts %></td>
+               <td><% showAction action %></td>
+               <td><% comment %></td>
+              </tr> |]
+--                <pre><code><% show $ ppRelationTuples tuples %></code></pre>
+{-
 inputText' txt = inputText txt `setAttrs` [("size" := "15") :: Attr Text Text]
 
-objectFormletNoWildcard :: [ ObjectType ] -> ClckForm RebacURL (Object NoWildcard)
-objectFormletNoWildcard objectTypes =
+objectFormlet :: [ ObjectType ] -> ClckForm RebacURL Object
+objectFormlet objectTypes =
 --  Object <$> (td $ ObjectType <$> inputText' "") <*> (td $ ObjectId <$> inputText' "")
   Object <$> (td $ select ((ObjectType "","") : (map (\ot@(ObjectType ott) -> (ot, ott)) objectTypes)) ((==) (ObjectType ""))) <*> (td $ ObjectId <$> inputText' "")
   where
     td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
-
-objectFormletAllowWildcard :: [ ObjectType ] -> ClckForm RebacURL (Object AllowWildcard)
-objectFormletAllowWildcard objectTypes =
---  Object <$> (td $ ObjectType <$> inputText' "") <*> (td $ ObjectId <$> inputText' "")
-  Object <$> (td $ select ((ObjectType "","") : (map (\ot@(ObjectType ott) -> (ot, ott)) objectTypes)) ((==) (ObjectType ""))) <*> (td $ Specific . ObjectId <$> inputText' "")
-  where
-    td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
-    toSubjectId txt
-      | txt == "*" = Wildcard
-      | otherwise  = Specific (ObjectId txt)
 
 emptyRelationIsNothing :: Relation -> Maybe Relation
 emptyRelationIsNothing r@(Relation txt)
@@ -89,9 +127,9 @@ data FormAction
 relationTupleFormlet :: [ ObjectType ] -> [ Relation ] -> [ Relation ] -> ClckForm RebacURL FormAction
 relationTupleFormlet knownObjectTys knownRels knownSubjectRels =
   tr ((AddRT <$> (RelationTuple
-                     <$> (objectFormletNoWildcard knownObjectTys)
+                     <$> (objectFormlet knownObjectTys)
                      <*> (td $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation "")))
-                     <*> (objectFormletAllowWildcard knownObjectTys)
+                     <*> (objectFormlet knownObjectTys)
                      <*> (td $ (fmap emptyRelationIsNothing $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownSubjectRels)) ((==) (Relation ""))))
                      <* (td $ inputSubmit "+"))))
   where
@@ -162,13 +200,10 @@ relationsTable action knownObjectTys knownRels knownSubjectRels tuples =
       mkRow'' :: RelationTuple
               -> [XMLGenT (ClckT RebacURL (ServerPartT IO)) XML]
               -> XMLGenT (ClckT RebacURL (ServerPartT IO)) (XMLType (ClckT RebacURL (ServerPartT IO)))
-      mkRow'' (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) wsi) msr ) delButton =
+      mkRow'' (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)) msr ) delButton =
          let sr = case msr of
                     Nothing -> ""
                     (Just (Relation r)) -> r
-             si = case wsi of
-               Wildcard -> "*"
-               (Specific (ObjectId i)) -> i
          in
              [hsx|
                     <tr><td><% rt  %></td>
@@ -180,7 +215,7 @@ relationsTable action knownObjectTys knownRels knownSubjectRels tuples =
                         <td><% delButton %></td>
                     </tr>
                     |]
-{-
+
       mkRow' (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) (ObjectId si)) msr )  =
          let sr = case msr of
                     Nothing -> ""

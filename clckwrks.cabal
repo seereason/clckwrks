@@ -86,6 +86,7 @@ Library
 --                   Clckwrks.Rebac.Plugin
                    Clckwrks.Rebac.Page.Schema
                    Clckwrks.Rebac.Page.Relations
+                   Clckwrks.Rebac.Page.RelationLog
                    Clckwrks.Rebac.Route
                    Clckwrks.Rebac.Types
                    Clckwrks.Rebac.URL

@@ -1,15 +1,16 @@
 {-# LANGUAGE DeriveDataTypeable, DeriveGeneric, FlexibleInstances, MultiParamTypeClasses, RecordWildCards, OverloadedStrings #-}
 module Clckwrks.Rebac.API
        ( getRelationTuples
+       , getRelationLog
        , getSchema
---       , putSchema
        , addRelationTuple
---       , removeRelationTuple
+       , removeRelationTuple
        , RebacApi(..)
+       , direct_member
+       , usergroup
        ) where
 
--- import AccessControl.Acid            (AddRelationTuple(..), Check(..), PutSchema(..), GetSchema(..), GetRelationTuples(..))
-import AccessControl.Check           (RelationState(..), Access(..), RelationState(..))
+import AccessControl.Check           (Access(..))
 import AccessControl.Schema          (KnownPermission, Permission(..), Schema(..), ToPermission(..), )
 import AccessControl.Relation        (Relation(..), RelationTuple(..), ToObject(..), Object(..), ObjectId(..), ToRelation(..), ObjectType(..))
 
@@ -17,7 +18,7 @@ import Clckwrks.AccessControl       (checkAccess)
 import Clckwrks.Authenticate.Plugin (authenticatePlugin, authenticatePluginLoader)
 import Clckwrks.Authenticate.Monad  (AuthenticatePluginState(..))
 import Clckwrks.Monad               (Clck, ClckPlugins, ClckT, ClckState(rebacSchema), plugins, query, update)
-import Clckwrks.Rebac.Acid          (AddRelationTuple(..), GetRelationTuples(..), RemoveRelationTuple(..))
+import Clckwrks.Rebac.Acid          (AddRelationTuple(..), GetRelationLog(..), GetRelationTuples(..), RemoveRelationTuple(..), RelationLogEntry)
 import Control.Concurrent.STM       (atomically)
 import Control.Concurrent.STM.TVar  (modifyTVar')
 import Control.Monad                (join)
@@ -31,6 +32,7 @@ import Data.Maybe                   (maybe)
 import Data.Monoid                  (mempty)
 import Data.Text                    (Text)
 import qualified Data.Text          as Text
+import Data.Time.Clock              (getCurrentTime)
 import Data.Typeable                (Typeable)
 import Data.UserId                  (UserId)
 import GHC.Generics                 (Generic)
@@ -40,6 +42,7 @@ import Web.Plugins.Core             (Plugin(..), When(Always), addCleanup, addHa
 data RebacApi
   = SchemaR
   | RelationsR
+  | RelationLogR
   deriving (Eq, Ord, Read, Show, Data, Typeable, Generic)
 
 instance ToObject RebacApi where
@@ -47,9 +50,14 @@ instance ToObject RebacApi where
     Object (ObjectType "rebac_api") (ObjectId "schema")
   toObject RelationsR =
     Object (ObjectType "rebac_api") (ObjectId "relations")
+  toObject RelationLogR =
+    Object (ObjectType "rebac_api") (ObjectId "relation_log")
 
 instance KnownPermission RebacApi Permission (Maybe UserId)
 
+-- | get the rebac schema from 'ClckState'
+--
+-- Will fail if the 'UserId' making the request does not have get permissions on 'SchemaR'
 getSchema :: (Happstack m, MonadIO m) => ClckT url m (Either Text Schema)
 getSchema =
   do a <- checkAccess SchemaR (Permission "get")
@@ -60,6 +68,9 @@ getSchema =
        NotAllowed reasons ->
          pure $ Left $ Text.pack $ show reasons
 
+-- | get all the relation tuples from the database.
+--
+-- Will fail if the 'UserId' making the request does not have 'get' permissions on 'RelationsR'
 getRelationTuples :: (Happstack m, MonadIO m) => ClckT url m (Either Text [ RelationTuple ])
 getRelationTuples =
   do a <- checkAccess RelationsR (Permission "get")
@@ -70,58 +81,41 @@ getRelationTuples =
        NotAllowed reasons ->
          pure $ Left $ Text.pack $ show reasons
 
-addRelationTuple :: (Happstack m, MonadIO m) => RelationTuple -> ClckT url m (Either Text ())
-addRelationTuple rt =
-  do a <- checkAccess RelationsR (Permission "modify")
+-- | get all the relation tuple log history from the database.
+--
+-- Will fail if the 'UserId' making the request does not have 'get' permissions on 'RelationLogR'
+getRelationLog :: (Happstack m, MonadIO m) => ClckT url m (Either Text [ RelationLogEntry ])
+getRelationLog =
+  do a <- checkAccess RelationLogR (Permission "get")
      case a of
        Allowed ->
-         do update (AddRelationTuple rt)
-            pure (Right ())
+         do rl <- query GetRelationLog
+            pure $ Right $ rl
        NotAllowed reasons ->
          pure $ Left $ Text.pack $ show reasons
 
-{-
-
-getUser :: UserId -> Clck url (Maybe User)
-getUser uid =
-  do p <- plugins <$> get
-     ~(Just aps) <- getPluginState p (pluginName authenticatePlugin)
-     liftIO $ Acid.query (acidStateAuthenticate aps) (GetUserByUserId uid)
-
--- | Update an existing 'User'. Must already have a valid 'UserId'.
+-- | Add a 'RelationTuple' to the relation database.
 --
--- no security checks are performed to ensure that the caller is
--- authorized to change data for the 'User'.
-insecureUpdateUser :: User -> Clck url ()
-insecureUpdateUser user =
-  do p <- plugins <$> get
-     ~(Just aps) <- getPluginState p (pluginName authenticatePlugin)
-     liftIO $ Acid.update (acidStateAuthenticate aps) (UpdateUser user)
+-- NOTE: no checks are performed to ensure that the current user has
+-- permission to modify the database.
+addRelationTuple :: (Happstack m, MonadIO m) => RelationTuple -> Text -> ClckT url m RelationLogEntry
+addRelationTuple rt comment =
+  do now <- liftIO getCurrentTime
+     update (AddRelationTuple rt now comment)
 
-getUsername :: UserId -> Clck url (Maybe Username)
-getUsername uid =
-  do mUser <- getUser uid
-     pure $ _username <$> mUser
+-- | Remove a 'RelationTuple' from the relation database.
+--
+-- NOTE: no checks are performed to ensure that the current user has
+-- permission to modify the database.
+removeRelationTuple :: (Happstack m, MonadIO m) => RelationTuple -> Text -> ClckT url m RelationLogEntry
+removeRelationTuple rt comment =
+  do now <- liftIO getCurrentTime
+     update (RemoveRelationTuple rt now comment)
 
-getEmail :: UserId -> Clck url (Maybe Email)
-getEmail uid =
-  do mUser <- getUser uid
-     pure $ join $ _email <$> mUser
+-- * core clckwrks Relations and ObjectTypes
 
-setCreateUserCallback :: ClckPlugins -> Maybe (User -> IO ()) -> IO ()
-setCreateUserCallback p mcb =
-  do ~(Just aps) <- getPluginState p (pluginName authenticatePlugin)
-     liftIO $ atomically $ modifyTVar' (apsAuthenticateConfigTV aps) $ (\ac -> ac { _createUserCallback = mcb })
-     pure ()
+direct_member :: Relation
+direct_member = Relation "direct_member"
 
-setSignupPluginURL :: ClckPlugins
-                   -> Text
-                   -> Text
-                   -> IO ()
-setSignupPluginURL plugins pn pu =
-  do modifyPluginState' plugins (pluginName authenticatePlugin) $ \aps ->
-       aps { apsSignupPluginURLs = Map.insert pn pu (apsSignupPluginURLs aps) }
-     authenticatePluginLoader plugins
-     pure ()
-
--}
+usergroup :: ObjectType
+usergroup = ObjectType "usergroup"
