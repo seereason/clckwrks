@@ -11,8 +11,9 @@ import Clckwrks.Authenticate.Plugin (authenticatePlugin)
 import Clckwrks.Authenticate.Monad (AuthenticatePluginState(..))
 import Clckwrks.ProfileData.Acid   (GetProfileData(..), SetProfileData(..))
 import Clckwrks.Rebac.Acid         (RelationLogEntry(..), RLEAction(..))
-import Clckwrks.Rebac.API          (RebacApi(..), addRelationTuple, removeRelationTuple, getRelationLog, getSchema)
+import Clckwrks.Rebac.API          (RebacApi(..), addRelationTuple, removeRelationTuple, getRelationLog)
 import Clckwrks.Rebac.URL          (RebacURL(..))
+import Clckwrks.Unauthorized       (unauthorizedPage)
 import Control.Monad.State         (get)
 import Control.Monad.Trans         (liftIO)
 import qualified Data.Acid         as Acid
@@ -33,7 +34,6 @@ import HSP.XML
 import Web.Plugins.Core            (Plugin(..), getPluginState)
 
 -- FIXME: this currently uses the admin template. Which is sort of right, and sort of not.
-
 -- FIXME: should this call a varient of `getRelationTuples` where we see that the user is allowed to view them?
 relationLogPanel :: RebacURL -> Clck RebacURL Response
 relationLogPanel here =
@@ -46,8 +46,7 @@ relationLogPanel here =
               </%>
                                               |]
        (Left e) ->
-         ok $ toResponse $ show e
-
+         unauthorizedPage ("You do not have permission to view the relations log" :: Text)
 
 -- relationLogTable :: [ RelationLogEntry ] -> Clck RebacURL Response
 relationLogTable logEntries =

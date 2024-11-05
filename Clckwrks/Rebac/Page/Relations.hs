@@ -13,6 +13,7 @@ import Clckwrks.ProfileData.Acid   (GetProfileData(..), SetProfileData(..))
 import Clckwrks.Rebac.Acid         (AddRelationTuple(..), RemoveRelationTuple(..))
 import Clckwrks.Rebac.API          (RebacApi(..), addRelationTuple, removeRelationTuple, getRelationTuples, getSchema)
 import Clckwrks.Rebac.URL          (RebacURL(..))
+import Clckwrks.Unauthorized       (unauthorizedPage)
 import Control.Monad.State         (get)
 import Control.Monad.Trans         (liftIO)
 import qualified Data.Acid         as Acid
@@ -54,7 +55,8 @@ relationsPanel here =
               </%>
                                               |]
        (Left e) ->
-         ok $ toResponse $ show e
+         unauthorizedPage ("You do not have permission to view the relation tuples" :: Text)
+--         ok $ toResponse $ show e
 
 --                <pre><code><% show $ ppRelationTuples tuples %></code></pre>
 

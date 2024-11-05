@@ -58,8 +58,8 @@ assertAccess res perm =
          do rq <- askRq
             mu <- getUserId
             escape $ do setRedirectCookie (rqUri rq ++ rqQuery rq)
-                        unauthorizedPage  ("You do not have permission to access this resource. " <>
+                        unauthorizedPage  ("You do not have permission to access this resource. ") {- <>
                                            "resource = " <> (TL.pack (show $ ppObject (toObject res))) <>
                                            ", permission = " <> (TL.pack (show $ ppPermission (toPermission perm))) <>
                                            ", subject = " <> (TL.pack (show $ ppObject (toObject mu))) <>
-                                           ", reasons = " <> (TL.pack $ show reasons) :: TL.Text)
+                                           ", reasons = " <> (TL.pack $ show reasons) :: TL.Text) -}

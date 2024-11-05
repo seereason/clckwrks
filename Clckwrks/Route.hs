@@ -39,16 +39,14 @@ checkAuth url =
       Admin{}              ->
         do let clckAdmin = Object (ObjectType "clck") (ObjectId "admin") :: Object NoWildcard
            r <- checkAccess clckAdmin (Permission "admin")
---           let r = Allowed
            case r of
              Allowed -> pure url
              (NotAllowed reasons) ->
                do rq <- askRq
                   escape $ do setRedirectCookie (rqUri rq ++ rqQuery rq)
                               -- FIXME; redirect after login
-                              unauthorizedPage  ("You do not have permission to view this page. " <> (TL.pack (show reasons)))
+                              unauthorizedPage  ("You do not have permission to view this page.") -- <> (TL.pack (show reasons)))
 
-           {- requiresRole (Set.singleton Administrator) -}
 
       Profile EditProfileData{}    -> requiresRole (Set.fromList [Administrator, Visitor]) url
       Profile EditNewProfileData{} -> requiresRole (Set.fromList [Administrator, Visitor]) url
