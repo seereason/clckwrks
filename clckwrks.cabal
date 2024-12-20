@@ -62,8 +62,8 @@ Library
                    Clckwrks.BasicTemplate
                    Clckwrks.GetOpts
                    Clckwrks.IOThread
+                   Clckwrks.Mail
                    Clckwrks.Monad
-                   Clckwrks.Server
                    Clckwrks.Markup.HsColour
                    Clckwrks.Markup.Markdown
                    Clckwrks.Markup.Pandoc
@@ -91,6 +91,7 @@ Library
                    Clckwrks.Rebac.Types
                    Clckwrks.Rebac.URL
                    Clckwrks.Route
+                   Clckwrks.Server
                    Clckwrks.Types
                    Clckwrks.Unauthorized
                    Clckwrks.URL
@@ -129,6 +130,7 @@ Library
      ixset                        >= 1.0 && < 1.2,
      jmacro                       >= 0.6.18 && < 0.7,
      lens                         >= 4.3  && < 5.4,
+     mime-mail                    >= 0.4  && < 0.6,
      mtl                          >= 2.0  && < 2.4,
      old-locale                   ==  1.0.*,
      process                      >= 1.0  && < 1.7,
