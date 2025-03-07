@@ -2,7 +2,7 @@
 module Clckwrks.Rebac.Page.RelationLog where
 
 import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
-import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), WildcardObjectId(..), ppRelationTuple, ppRelationTuples)
+import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), WildcardObjectId(..), Tag(..), ppRelationTuple, ppRelationTuples)
 import Clckwrks
 import Clckwrks.AccessControl      (checkAccess)
 import Clckwrks.Monad              (plugins)
@@ -10,7 +10,7 @@ import Clckwrks.Admin.Template     (template)
 import Clckwrks.Authenticate.Plugin (authenticatePlugin)
 import Clckwrks.Authenticate.Monad (AuthenticatePluginState(..))
 import Clckwrks.ProfileData.Acid   (GetProfileData(..), SetProfileData(..))
-import Clckwrks.Rebac.Acid         (RelationLogEntry(..), RLEAction(..))
+import Clckwrks.Rebac.Acid         (RelationLogEntry(..), RLEAction(..), RelationTxId(..))
 import Clckwrks.Rebac.API          (RebacApi(..), addRelationTuple, removeRelationTuple, getRelationLog)
 import Clckwrks.Rebac.URL          (RebacURL(..))
 import Clckwrks.Unauthorized       (unauthorizedPage)
@@ -56,9 +56,10 @@ relationLogTable logEntries =
        <caption>Relation Log</caption>
        <thead>
         <tr>
-         <th colspan="6">Relation</th>
+         <th colspan="7">Relation</th>
          <th>Timestamp</th>
          <th>Action</th>
+         <th>TxId</th>
          <th>Comment</th>
         </tr>
         <tr>
@@ -73,6 +74,7 @@ relationLogTable logEntries =
          <th>Object Type</th>
          <th>Object ID</th>
          <th>Subject Relation</th>
+         <th>Tag</th>
         </tr>
        </thead>
        <tbody>
@@ -87,7 +89,7 @@ relationLogTable logEntries =
       showAction :: RLEAction -> Text
       showAction RLEAdd    = "added"
       showAction RLERemove = "removed"
-      mkRow (RelationLogEntry ts (RelationTuple (Object (ObjectType rot) (ObjectId rid)) (Relation rel) (Object (ObjectType sot) wsid) mSubRel) action comment) =
+      mkRow (RelationLogEntry ts (RelationTuple (Object (ObjectType rot) (ObjectId rid)) (Relation rel) (Object (ObjectType sot) wsid) mSubRel mTag) action comment (RelationTxId txId)) =
         let sid = case wsid of
                     Wildcard -> "*"
                     (Specific (ObjectId i)) -> i
@@ -99,8 +101,10 @@ relationLogTable logEntries =
                <td><% sot %></td>
                <td><% sid %></td>
                <td><% maybe "" (\(Relation r) -> r) mSubRel %></td>
+               <td><% maybe "" unTag mTag %></td>
                <td><% show ts %></td>
                <td><% showAction action %></td>
+               <td><% Text.pack $ show txId %></td>
                <td><% comment %></td>
               </tr> |]
 --                <pre><code><% show $ ppRelationTuples tuples %></code></pre>

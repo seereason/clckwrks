@@ -1,18 +1,32 @@
 {-# LANGUAGE CPP, DeriveDataTypeable, DeriveGeneric, FlexibleInstances, MultiParamTypeClasses, QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings #-}
 module Clckwrks.Rebac.Acid where
 
-import AccessControl.Relation      (ObjectType(..), Relation(..), RelationTuple(..), object, rels)
+import AccessControl.Relation      (ObjectType(..), Relation(..), RelationTuple(..), Tag(..), hasTag, object, rels)
 import AccessControl.Schema        (Schema, schema)
 import Control.Monad.Reader        (ask)
 import Control.Monad.State         (put, get)
 import Data.Acid                   (Query, Update, makeAcidic)
 import Data.Data                   (Data)
+import Data.List                   (partition, union)
 import Data.SafeCopy               (SafeCopy(..), base, contain, safeGet, safePut)
 import Data.Time.Clock             (UTCTime)
 import Data.Time.Clock.POSIX       (posixSecondsToUTCTime)
 import Data.Text                   (Text)
 import Data.Typeable               (Typeable)
 import GHC.Generics                (Generic)
+import Text.PrettyPrint.HughesPJ (Doc, (<+>), ($$), ($+$))
+import qualified Text.PrettyPrint.HughesPJ as PP
+
+newtype RelationTxId = RelationTxId { unRelationTxId :: Integer }
+  deriving (Eq, Ord, Read, Show, Data, Typeable, Generic)
+
+instance SafeCopy RelationTxId where version = 1 ; kind = base
+
+succRelationIxId :: RelationTxId -> RelationTxId
+succRelationIxId (RelationTxId rid) = (RelationTxId (succ rid))
+
+ppRelationTxId :: RelationTxId -> Doc
+ppRelationTxId (RelationTxId n) = PP.text "RelationTxId" <+> PP.text (show n)
 
 data RLEAction
   = RLEAdd
@@ -21,11 +35,16 @@ data RLEAction
 
 instance SafeCopy RLEAction where version = 1 ; kind = base
 
+{-
+It may seem like the Timestamp and Transaction Id are nearly duplicates. But fast transactions could result in identical time stamps and there are sitautions where the clock could appear to jump back in time.
+
+-}
 data RelationLogEntry = RelationLogEntry
   { rleTimestamp     :: UTCTime
   , rleRelationTuple :: RelationTuple
   , rleAction        :: RLEAction
   , rleComment       :: Text
+  , rleTxId          :: RelationTxId
   }
   deriving (Eq, Ord, Read, Show, Data, Typeable, Generic)
 
@@ -66,9 +85,11 @@ It is not clear that modifying a relation is a sensible operation.
 Let's stick with read/write/delete.
 
 -}
+
 data RebacState = RebacState
   { rsTuples :: [ RelationTuple ]    -- currently important tuples
   , rsLog    :: [ RelationLogEntry ] -- how did we get here
+  , rsTxId   :: RelationTxId         -- next unassigned TxId
   }
   deriving (Eq, Ord, Read, Show, Generic)
 
@@ -78,6 +99,8 @@ instance SafeCopy RebacState where version = 1 ; kind = base
 --
 -- If the 'RelationTuple' already exists in the 'rsTuples' the 'rsTuple' cache will not be modified, but the
 -- 'RelationTuple' will still be added to the 'rsLog'
+--
+-- FIXME: add a precondition check. If the precondition fails, no modifications are performed.
 addRelationTuple :: RelationTuple -- ^ 'RelationTuple' to add
                  -> UTCTime       -- ^ approximate wall time this relation tuple was added
                  -> Text          -- ^ a human readable comment explaining how/why this relation got added
@@ -88,16 +111,42 @@ addRelationTuple rt now comment =
                                  , rleRelationTuple = rt
                                  , rleAction        = RLEAdd
                                  , rleComment       = comment
+                                 , rleTxId          = rsTxId rs
                                  })
      put $ rs { rsTuples = if rt `elem` (rsTuples rs) then (rsTuples rs) else (rt : (rsTuples rs))  -- don't insert into rsTuples cache if it already exists
               , rsLog = rle : (rsLog rs)
+              , rsTxId = succRelationIxId (rsTxId rs)
               }
      pure rle
 
--- | remove a 'RelationTuple' to the database
+
+
+addRelationTuples :: [RelationTuple] -- ^ 'RelationTuple's to add
+                  -> UTCTime       -- ^ approximate wall time this relation tuple was added
+                  -> Text          -- ^ a human readable comment explaining how/why this relation got added
+                  -> Update RebacState [RelationLogEntry]
+addRelationTuples [] now comment = pure []
+addRelationTuples rts now comment =
+  do rs <- get
+     let rles = [ RelationLogEntry { rleTimestamp     = now
+                                   , rleRelationTuple = rt
+                                   , rleAction        = RLEAdd
+                                   , rleComment       = comment
+                                   , rleTxId          = rsTxId rs
+                                   } | rt <- rts ]
+     put $ rs { rsTuples = union rts (rsTuples rs)
+              , rsLog = rles ++ (rsLog rs)
+              , rsTxId = succRelationIxId (rsTxId rs)
+              }
+     pure rles
+
+-- | remove a 'RelationTuple' from the database
+--
+-- This only removes tuples that are an exact match.
 --
 -- If the 'RelationTuple' does not exist in the 'rsTuples' the 'rsTuple' cache will not be modified and no error will be returned.
 -- But the 'RelationTuple' removal will still be added to the 'rsLog'.
+--
 removeRelationTuple :: RelationTuple -- ^ 'RelationTuple' to remove
                     -> UTCTime       -- ^ approximate wall time this relation tuple was removed
                     -> Text          -- ^ a human readable comment explaining how/why this relation got added
@@ -108,11 +157,45 @@ removeRelationTuple rt now comment =
                                  , rleRelationTuple = rt
                                  , rleAction        = RLERemove
                                  , rleComment       = comment
+                                 , rleTxId          = rsTxId rs
                                  })
      put $ rs { rsTuples = filter ((/=) rt) (rsTuples rs)
               , rsLog    = rle : (rsLog rs)
+              , rsTxId   = succRelationIxId (rsTxId rs)
               }
      pure rle
+
+removeRelationTuplesByTag :: Tag      -- ^ remove *any* tuple with this tag
+                          -> UTCTime  -- ^ approximate wall time this relation tuple was removed
+                          -> Text     -- ^ a human readable comment explaining how/why these relations got removed
+                          -> Update RebacState [RelationLogEntry]
+removeRelationTuplesByTag tag now comment =
+  do rs <- get
+     let (remove, keep) = partition (hasTag tag) (rsTuples rs)
+     let rles = [ RelationLogEntry { rleTimestamp     = now
+                                   , rleRelationTuple = rt
+                                   , rleAction        = RLERemove
+                                   , rleComment       = comment
+                                   , rleTxId          = rsTxId rs
+                                   } | rt <- remove ]
+     put $ rs { rsTuples = keep
+              , rsLog    = rles ++ (rsLog rs)
+              , rsTxId   = succRelationIxId (rsTxId rs)
+              }
+     pure rles
+
+-- | this provides an atomic way to remove all the tuples associated with a 'tag' and insert new tuples for that 'tag'.
+--
+-- NOTE: it is up to the caller to ensure that the new tuples have the same tag
+replaceRelationTuplesByTag :: Tag -- ^ remove *any* tuples with this tag
+                           -> [RelationTuple] -- ^ add these new tuples. They *should* have the same tag, but that is not enforced
+                           -> UTCTime -- ^ approximate wall time this operation was performed
+                           -> Text -- ^ humman readable comment on why this happened
+                           -> Update RebacState [RelationLogEntry]
+replaceRelationTuplesByTag tag rts now comment =
+  do removedRLEs <- removeRelationTuplesByTag tag now comment
+     addedRLEs   <- addRelationTuples rts now comment
+     pure (removedRLEs ++  addedRLEs)
 
 -- | get all the 'RelationTuple' from the database
 getRelationTuples :: Query RebacState [ RelationTuple ]
@@ -128,7 +211,10 @@ getRelationLog =
 
 makeAcidic ''RebacState
  [ 'addRelationTuple
+ , 'addRelationTuples
  , 'removeRelationTuple
+ , 'removeRelationTuplesByTag
+ , 'replaceRelationTuplesByTag
  , 'getRelationTuples
  , 'getRelationLog
  ]
@@ -237,7 +323,8 @@ initialRebacState :: RebacState
 initialRebacState = RebacState
   { rsTuples = clckwrksRels
   , rsLog    = map fakeLog clckwrksRels
+  , rsTxId   = RelationTxId 1
   }
   where
     fakeLog :: RelationTuple -> RelationLogEntry
-    fakeLog rt = RelationLogEntry (posixSecondsToUTCTime 0) rt RLEAdd "initial rebac state"
+    fakeLog rt = RelationLogEntry (posixSecondsToUTCTime 0) rt RLEAdd "initial rebac state" (RelationTxId 0)

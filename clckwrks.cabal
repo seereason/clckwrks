@@ -133,6 +133,7 @@ Library
      mime-mail                    >= 0.4  && < 0.6,
      mtl                          >= 2.0  && < 2.4,
      old-locale                   ==  1.0.*,
+     pretty                       >= 1.1 && < 1.2,
      process                      >= 1.0  && < 1.7,
 --     plugins-auto == 0.0.1.1,
      random                       >= 1.0  && < 1.3,

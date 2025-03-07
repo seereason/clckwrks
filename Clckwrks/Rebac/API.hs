@@ -103,6 +103,15 @@ addRelationTuple rt comment =
   do now <- liftIO getCurrentTime
      update (AddRelationTuple rt now comment)
 
+-- | Add a 'RelationTuple' to the relation database.
+--
+-- NOTE: no checks are performed to ensure that the current user has
+-- permission to modify the database.
+addRelationTuples :: (Happstack m, MonadIO m) => RelationTuple -> Text -> ClckT url m RelationLogEntry
+addRelationTuples rt comment =
+  do now <- liftIO getCurrentTime
+     update (AddRelationTuple rt now comment)
+
 -- | Remove a 'RelationTuple' from the relation database.
 --
 -- NOTE: no checks are performed to ensure that the current user has

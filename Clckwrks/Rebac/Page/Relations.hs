@@ -2,7 +2,7 @@
 module Clckwrks.Rebac.Page.Relations where
 
 import AccessControl.Schema          (KnownPermission, Permission(..), ToPermission(..), Schema(..), ppSchema, knownObjectTypes, knownRelations)
-import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), ObjectWildcard(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), WildcardObjectId(..), ppRelationTuple, ppRelationTuples)
+import AccessControl.Relation        (Object(..), ObjectId(..), ObjectType(..), ObjectWildcard(..), Relation(..), RelationTuple(..), ToObject(..), ToRelation(..), WildcardObjectId(..), Tag(..), ppRelationTuple, ppRelationTuples)
 import Clckwrks
 import Clckwrks.AccessControl      (checkAccess)
 import Clckwrks.Monad              (plugins)
@@ -33,6 +33,7 @@ import HSP.XMLGenerator
 import HSP.XML
 import Web.Plugins.Core            (Plugin(..), getPluginState)
 
+-- FIXME: the input fields allow arbitrary text even though ids and other values are restricted in what can actually appear. See the pName parser in the rebac library.
 -- FIXME: this currently uses the admin template. Which is sort of right, and sort of not.
 
 -- FIXME: should this call a varient of `getRelationTuples` where we see that the user is allowed to view them?
@@ -79,6 +80,16 @@ objectFormletAllowWildcard objectTypes =
       | txt == "*" = Wildcard
       | otherwise  = Specific (ObjectId txt)
 
+tagFormlet :: ClckForm RebacURL (Maybe Tag)
+tagFormlet =
+  td $ fmap toTag (inputText' "")
+  where
+    td = mapView (\xml -> [[hsx|<td><% xml %></td>|]])
+    toTag txt
+      | Text.null txt = Nothing
+      | otherwise  = Just (Tag txt)
+
+
 emptyRelationIsNothing :: Relation -> Maybe Relation
 emptyRelationIsNothing r@(Relation txt)
   | Text.null txt = Nothing
@@ -95,6 +106,7 @@ relationTupleFormlet knownObjectTys knownRels knownSubjectRels =
                      <*> (td $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownRels)) ((==) (Relation "")))
                      <*> (objectFormletAllowWildcard knownObjectTys)
                      <*> (td $ (fmap emptyRelationIsNothing $ select ((Relation "","") : (map (\r@(Relation rTxt) -> (r,rTxt)) knownSubjectRels)) ((==) (Relation ""))))
+                     <*> tagFormlet
                      <* (td $ inputSubmit "+"))))
   where
     tr = mapView (\xml -> [[hsx|<tr><% xml %></tr>|]])
@@ -123,7 +135,7 @@ relationsTable action knownObjectTys knownRels knownSubjectRels tuples =
          <th colspan="2">Resource</th>
          <th>Relation</th>
          <th colspan="3">Subject</th>
-         <th>Action</th>
+         <th>Tag</th>
         </tr>
         <tr>
          <th>Object Type</th>
@@ -147,12 +159,12 @@ relationsTable action knownObjectTys knownRels knownSubjectRels tuples =
       updated :: FormAction -> Clck RebacURL Response
       updated (AddRT rt) =
         do userid <- whoami
-           addRelationTuple rt "Added directly by user "
+           addRelationTuple rt "Added directly by admin"
            seeOtherURL RelationsPanel
       updated (RemoveRT rt) =
         do -- liftIO $ putStrLn $ "RemoveRT - " ++ show (ppRelationTuple rt)
            userid <- whoami
-           removeRelationTuple rt "Added directly by user"
+           removeRelationTuple rt "Removed directly by admin"
            seeOtherURL RelationsPanel
 {-
       mkRow :: ( StringType (ServerPartT IO) ~ Text
@@ -164,7 +176,7 @@ relationsTable action knownObjectTys knownRels knownSubjectRels tuples =
       mkRow'' :: RelationTuple
               -> [XMLGenT (ClckT RebacURL (ServerPartT IO)) XML]
               -> XMLGenT (ClckT RebacURL (ServerPartT IO)) (XMLType (ClckT RebacURL (ServerPartT IO)))
-      mkRow'' (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) wsi) msr ) delButton =
+      mkRow'' (RelationTuple (Object (ObjectType rt) (ObjectId ri)) (Relation r) (Object (ObjectType st) wsi) msr mTag) delButton =
          let sr = case msr of
                     Nothing -> ""
                     (Just (Relation r)) -> r
@@ -179,6 +191,7 @@ relationsTable action knownObjectTys knownRels knownSubjectRels tuples =
                         <td><% st  %></td>
                         <td><% si  %></td>
                         <td><% sr %></td>
+                        <td><% maybe "" unTag mTag %></td>
                         <td><% delButton %></td>
                     </tr>
                     |]
