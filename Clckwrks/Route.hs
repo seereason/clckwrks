@@ -37,15 +37,18 @@ checkAuth url =
       ThemeDataNoEscape{}  -> return url
       PluginData{}         -> return url
       Admin{}              ->
-        do let clckAdmin = Object (ObjectType "clck") (ObjectId "admin") :: Object NoWildcard
-           r <- checkAccess clckAdmin (Permission "admin")
-           case r of
-             Allowed -> pure url
-             (NotAllowed reasons) ->
-               do rq <- askRq
-                  escape $ do setRedirectCookie (rqUri rq ++ rqQuery rq)
-                              -- FIXME; redirect after login
-                              unauthorizedPage  ("You do not have permission to view this page.") -- <> (TL.pack (show reasons)))
+        do roles <- getUserRoles            -- first check if the user has the Admin role using the old system
+           if Set.member Administrator roles
+             then pure url
+             else do let clckAdmin = Object (ObjectType "clck") (ObjectId "admin") :: Object NoWildcard
+                     r <- checkAccess clckAdmin (Permission "admin")
+                     case r of
+                       Allowed -> pure url
+                       (NotAllowed reasons) ->
+                         do rq <- askRq
+                            escape $ do setRedirectCookie (rqUri rq ++ rqQuery rq)
+                                        -- FIXME; redirect after login
+                                        unauthorizedPage  ("You do not have permission to view this page.") -- <> (TL.pack (show reasons)))
 
 
       Profile EditProfileData{}    -> requiresRole (Set.fromList [Administrator, Visitor]) url
