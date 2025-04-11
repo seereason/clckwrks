@@ -327,7 +327,14 @@ withAcid mBasePath f =
             (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket")))
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
-            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket")))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))) $ const $
+#endif
+#if MIN_VERSION_acid_state (0,16,0)
+    bracket (forkIO (tryRemoveFile (basePath </> "navBar_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "navBar_socket") navBar))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "navBar_socket")))
+#else
+    bracket (forkIO (tryRemoveFile (basePath </> "navBar_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "navBar_socket") navBar))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "navBar_socket")))
 #endif
             (const $ f (Acid profileData core navBar))
     where
@@ -337,3 +344,4 @@ withAcid mBasePath f =
       createArchiveCheckpointAndClose acid = liftIO $
           do createArchive acid
              createCheckpointAndClose acid
+
