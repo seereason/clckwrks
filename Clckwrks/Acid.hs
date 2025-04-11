@@ -324,7 +324,7 @@ withAcid mBasePath f =
 #endif
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "profileData_socket") profileData))
-            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket")))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))) $ const $
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
             (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))) $ const $
