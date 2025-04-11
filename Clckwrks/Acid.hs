@@ -345,3 +345,15 @@ withAcid mBasePath f =
           do createArchive acid
              createCheckpointAndClose acid
 
+-- | open acid remote socket connections to a running instance of clckwrks started by 'withAcid'
+
+withAcidRemoteClient :: (MonadIO m, MonadMask m) => Maybe FilePath -> (Acid -> m a) -> m a
+withAcidRemoteClient mBasePath f = do
+    let basePath = fromMaybe "_state" mBasePath
+        openRemote path = liftIO $ openRemoteStateSockAddr skipAuthenticationPerform (SockAddrUnix path)
+        closeRemote = liftIO . closeAcidState
+
+    bracket (openRemote (basePath </> "core_socket")) closeRemote $ \core ->
+      bracket (openRemote (basePath </> "profileData_socket")) closeRemote $ \profileData ->
+      bracket (openRemote (basePath </> "navBar_socket")) closeRemote $ \navBar ->
+      (f (Acid profileData core navBar))
