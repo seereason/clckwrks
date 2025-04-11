@@ -319,19 +319,12 @@ withAcid mBasePath f =
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "core_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "core_socket") profileData))
             (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "core_socket"))) $ const $
-
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "core_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "core_socket") profileData))
             (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "core_socket"))) $ const $
 #endif
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "profileData_socket") profileData))
-<<<<<<< HEAD
-            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket")))
-#else
-    bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
-            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket")))
-=======
             (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket")) $ const $
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
@@ -343,7 +336,6 @@ withAcid mBasePath f =
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "navBar_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "navBar_socket") profileData))
             (\tid -> killThread tid >> tryRemoveFile (basePath </> "navBar_socket"))
->>>>>>> 012aa38... for consistency, start the navBar socket server as well as core and profileData
 #endif
             (const $ f (Acid profileData core navBar))
     where
@@ -353,8 +345,6 @@ withAcid mBasePath f =
       createArchiveCheckpointAndClose acid = liftIO $
           do createArchive acid
              createCheckpointAndClose acid
-<<<<<<< HEAD
-=======
 
 -- | open acid remote socket connections to a running instance of clckwrks started by 'withAcid'
 
@@ -368,5 +358,3 @@ withAcidRemoteClient mBasePath f = do
       bracket (openRemote (basePath </> "profileData_socket")) closeRemote $ \profileData ->
       bracket (openRemote (basePath </> "navBar_socket")) closeRemote $ \navBar ->
       (f (Acid profileData core navBar))
-
->>>>>>> 6ec1c42... add withAcidRemoteClient to connect to acid instances through sockets
