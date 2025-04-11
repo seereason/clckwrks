@@ -287,10 +287,17 @@ withAcid mBasePath f =
 #endif
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "profileData_socket") profileData))
-            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket")) $ const $
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
-            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "profileData_socket")) $ const $
+#endif
+#if MIN_VERSION_acid_state (0,16,0)
+    bracket (forkIO (tryRemoveFile (basePath </> "navBar_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "navBar_socket") profileData))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "navBar_socket"))
+#else
+    bracket (forkIO (tryRemoveFile (basePath </> "navBar_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "navBar_socket") profileData))
+            (\tid -> killThread tid >> tryRemoveFile (basePath </> "navBar_socket"))
 #endif
             (const $ f (Acid profileData core navBar))
     where
