@@ -14,10 +14,10 @@ import Control.Monad.Catch         (bracket, catch, MonadMask)
 import Control.Monad.IO.Class      (liftIO, MonadIO)
 import Control.Monad.Reader        (ask)
 import Control.Monad.State         (modify, put)
-import Data.Acid                   (AcidState, Query, Update, createArchive, makeAcidic)
+import Data.Acid                   (AcidState(closeAcidState), Query, Update, createArchive, makeAcidic)
 import Data.Acid.Local             (openLocalStateFrom, createCheckpointAndClose)
 #if MIN_VERSION_acid_state (0,16,0)
-import Data.Acid.Remote            (acidServerSockAddr, skipAuthenticationCheck)
+import Data.Acid.Remote            (acidServerSockAddr, skipAuthenticationCheck, openRemoteStateSockAddr, skipAuthenticationPerform)
 import Data.Int                    (Int64)
 import Network.Socket              (SockAddr(SockAddrUnix))
 #else
@@ -324,10 +324,17 @@ withAcid mBasePath f =
 #endif
 #if MIN_VERSION_acid_state (0,16,0)
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "profileData_socket") profileData))
-            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket")))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))) $ const $
 #else
     bracket (forkIO (tryRemoveFile (basePath </> "profileData_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "profileData_socket") profileData))
-            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket")))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "profileData_socket"))) $ const $
+#endif
+#if MIN_VERSION_acid_state (0,16,0)
+    bracket (forkIO (tryRemoveFile (basePath </> "navBar_socket") >> acidServerSockAddr skipAuthenticationCheck (SockAddrUnix $ basePath </> "navBar_socket") navBar))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "navBar_socket")))
+#else
+    bracket (forkIO (tryRemoveFile (basePath </> "navBar_socket") >> acidServer skipAuthenticationCheck (UnixSocket $ basePath </> "navBar_socket") navBar))
+            (\tid -> liftIO (killThread tid >> tryRemoveFile (basePath </> "navBar_socket")))
 #endif
             (const $ f (Acid profileData core navBar))
     where
@@ -337,3 +344,16 @@ withAcid mBasePath f =
       createArchiveCheckpointAndClose acid = liftIO $
           do createArchive acid
              createCheckpointAndClose acid
+
+-- | open acid remote socket connections to a running instance of clckwrks started by 'withAcid'
+
+withAcidRemoteClient :: (MonadIO m, MonadMask m) => Maybe FilePath -> (Acid -> m a) -> m a
+withAcidRemoteClient mBasePath f = do
+    let basePath = fromMaybe "_state" mBasePath
+        openRemote path = liftIO $ openRemoteStateSockAddr skipAuthenticationPerform (SockAddrUnix path)
+        closeRemote = liftIO . closeAcidState
+
+    bracket (openRemote (basePath </> "core_socket")) closeRemote $ \core ->
+      bracket (openRemote (basePath </> "profileData_socket")) closeRemote $ \profileData ->
+      bracket (openRemote (basePath </> "navBar_socket")) closeRemote $ \navBar ->
+      (f (Acid profileData core navBar))
