@@ -134,19 +134,18 @@ authenticatePluginLoader plugins =
      let pluginURLs = apsSignupPluginURLs aps
      let script =
           [jmacro|
-            // console.log('xhr request start.');
+            // Load happstack-authenticate-client as a real <script src>
+            // rather than fetching it and running it with Function():
+            // that way document.currentScript is set, which the wasm build
+            // of the client needs to find its all.wasm, and devtools shows
+            // the code under its URL.
+            // once: only the page's own load event, never again (for
+            // instance when the inserted script itself finishes loading).
             window.addEventListener("load", function(event) {
-              var xhr = new XMLHttpRequest();
-              xhr.onreadystatechange = function ()
-              {
-                if ((xhr.status == 200) && (xhr.readyState == 4)) {
-                   var r = Function(xhr.responseText)();
-                }
-
-              };
-              xhr.open("GET", `authShowFn (Auth HappstackAuthenticateClient) []`);
-              xhr.send();
-            });
+              var s = document.createElement("script");
+              s.src = `authShowFn (Auth HappstackAuthenticateClient) []`;
+              document.head.appendChild(s);
+            }, { once: true });
             |]
 
 

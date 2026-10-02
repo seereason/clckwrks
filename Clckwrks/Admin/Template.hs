@@ -39,17 +39,13 @@ template title headers body = do
 --  ~(Just authRouteFn)       <- getPluginRouteFn p (pluginName authenticatePlugin)
    let authScriptInit =
           [jmacro|
-            // console.log('xhr request start.');
-            var xhr = new XMLHttpRequest();
-            xhr.onreadystatechange = function ()
-            {
-              if ((xhr.status == 200) && (xhr.readyState == 4)) {
-                 var r = Function(xhr.responseText)();
-                }
-
-            };
-            xhr.open("GET", `authRouteFn (Auth HappstackAuthenticateClient) []`);
-            xhr.send();
+            // Load happstack-authenticate-client as a real <script src>
+            // rather than fetching it and running it with Function():
+            // that way document.currentScript is set, which the wasm build
+            // of the client needs to find its all.wasm.
+            var s = document.createElement("script");
+            s.src = `authRouteFn (Auth HappstackAuthenticateClient) []`;
+            document.head.appendChild(s);
             |]
    let -- mkScript :: XMLGenT (ClckT url m) [XML]
        mkScript =
