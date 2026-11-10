@@ -13,6 +13,7 @@ import Control.Monad.Reader        (ask)
 import Control.Monad.State         (put, get)
 import Data.Acid                   (Query, Update, makeAcidic)
 import Data.Data                   (Data)
+import Data.Foldable               (foldl') -- required for base < 4.20
 import Data.List                   (mapAccumL, nub, partition, sort)
 import           Data.Map          (Map)
 import qualified Data.Map          as Map
